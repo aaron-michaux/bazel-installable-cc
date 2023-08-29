@@ -234,12 +234,21 @@ build_gcc()
 
     export CC=$HOST_CC
     export CXX=$HOST_CXX
-    nice ../gcc/configure --prefix=${PREFIX} \
+    nice ../gcc/configure \
+         --prefix=${PREFIX} \
          --enable-languages=c,c++,objc,obj-c++ \
          --disable-multilib \
          --program-suffix=-${MAJOR_VERSION} \
          --enable-checking=release \
-         --with-gcc-major-version-only
+         --with-gcc-major-version-only \
+
+         #--with-zstd
+    # --with-gmp-lib 
+        # --with-mpfr-lib 
+        # --with-mpc-lib 
+        # --with-isl 
+
+    
     nice make -j$(nproc) 2>$SRCD/build/stderr.text | tee $SRCD/build/stdout.text
     nice make install | tee -a $SRCD/build/stdout.text
 }
@@ -264,7 +273,7 @@ while (( $# > 0 )) ; do
     if [ "${ARG:0:3}" = "gcc" ] ; then
         COMMAND="build_gcc ${ARG:4}"
         CC_MAJOR_VERSION="$(echo ${ARG:4} | awk -F. '{ print $1 }')"
-        EXEC="$TOOLCHAINS_DIR/$ARG/bin/gcc-$CC_MAJOR_VERSION"
+        EXEC="$TOOLCHAINS_DIR/$ARG/bin/gcc-$CC_MAJOR_VERSION"        
         continue
     fi    
 

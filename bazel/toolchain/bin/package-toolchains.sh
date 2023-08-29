@@ -18,6 +18,9 @@ show_help()
          $LLVMS
          $GCCS
     
+      If 'archive' is done without 'build', then all archive
+      jobs are done in parallel.
+
 EOF
 }
 
@@ -44,21 +47,31 @@ archive_it()
 {
     local TOOL="$1"
     local ARCHIVE="${TOOL}--x86_64--${VENDOR}--linux.tar.xz"
+
+
+    if [ -f "$ARCHIVE.sha256" ] && [ -d "$ARCHIVE" ] ; then
+        if [ "$(sha256sum "$ARCHIVE")" = "$(cat $ARCHIVE.sha256)" ] ; then
+            echo "archive $TOOL, skipping (already done)"
+        fi
+    fi
+    echo "archive $TOOL"    
     cd "$TOOLCHAINS_DIR"
     tar -c "$TOOL" | xz -c9e > "${ARCHIVE}"
-    sha256sum "$ARCHIVE" > "$ARCHIVE.sha256" 
+    sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 }
 
 build_it()
 {
     local TOOL="$1"
     cd "$THIS_DIR"
-    ./build-toolchain.sh --no-cleanup "$TOOL"    
+    echo "build $TOOL"
+    ./build-toolchain.sh $CLEANUP_ARG "$TOOL"    
 }
 
 DO_ARCHIVE=false
 DO_BUILD=false
 TOOLCHAIN=""
+CLEANUP_ARG=
 
 for ARG in "$@" ; do
     [ "$ARG" = "-h" ] || [ "$ARG" = "--help" ] && show_help && exit 0
@@ -73,6 +86,8 @@ while (( $# > 0 )) ; do
     shift
     [ "$ARG" = "build" ] && DO_BUILD=true && continue
     [ "$ARG" = "archive" ] && DO_ARCHIVE=true && continue
+    [ "$ARG" = "--cleanup" ] && CLEANUP_ARG="$ARG" && continue
+    [ "$ARG" = "--no-cleanup" ] && CLEANUP_ARG="$ARG" && continue
     if [ "$TOOLCHAIN" != "" ] ; then
         echo "unexpected argument: '$ARG', toolchain already set to '$TOOLCHAIN'" 1>&2
         exit 1
@@ -97,7 +112,18 @@ fi
 
 for TOOL in $TOOLCHAINS ; do
     $DO_BUILD && build_it "$TOOL" || true
-    $DO_ARCHIVE && archive_it "$TOOL" || true
+
+    if $DO_ARCHIVE ; then
+        if $DO_BUILD ; then
+            archive_it "$TOOL"
+        else
+            archive_it "$TOOL" &
+        fi
+        
+    fi
 done
 
+wait
+
+echo "all jobs complete"
 
