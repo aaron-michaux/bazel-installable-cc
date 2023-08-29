@@ -39,22 +39,6 @@ show_help()
 EOF
 }
 
-all_recent()
-{
-    cat <<EOF
-# LLVM
-llvm-16.0.6
-llvm-15.0.7 llvm-14.0.6 llvm-13.0.1 llvm-12.0.1
-
-# Gcc
-gcc-13.2.0
-gcc-12.3.0
-gcc-11.4.0
-gcc-10.5.0
-gcc-9.5.0
-EOF
-}
-
 # ------------------------------------------------------ Host Platform Variables
 
 TOOLS_DIR="$TOOLCHAINS_DIR/tools"
@@ -62,18 +46,18 @@ HOST_CC="/usr/bin/gcc"
 HOST_CXX="/usr/bin/g++"
 CMAKE="$TOOLS_DIR/bin/cmake"
 
-if [ -z ${PLATFORM+x} ] ; then
-    if [ -x "/usr/bin/lsb_release" ] ; then    
-        PLATFORM="ubuntu"
-    elif [ -f "/etc/fedora-release" ] ; then
-        PLATFORM="fedora"
-    elif [ "$(uname -s)" = "Darwin" ] ; then
-        PLATFORM="macos"
-        LIBTOOL=glibtool
-        LIBTOOLIZE=glibtoolize 
-    elif [ -f /etc/os-release ] && cat /etc/os-release | grep -qi Oracle  ; then
-        PLATFORM="oracle"
-    fi
+if [ -x "/usr/bin/lsb_release" ] ; then    
+    PLATFORM="ubuntu"
+elif [ -f "/etc/fedora-release" ] ; then
+    PLATFORM="fedora"
+elif [ "$(uname -s)" = "Darwin" ] ; then
+    PLATFORM="macos"
+    LIBTOOL=glibtool
+    LIBTOOLIZE=glibtoolize 
+elif [ -f /etc/os-release ] && cat /etc/os-release | grep -qi Oracle  ; then
+    PLATFORM="oracle"
+else
+    echo "Failed to determine platform" 1>&2 && exit 1
 fi
 
 # ------------------------------------------------------------- helper functions
@@ -95,7 +79,7 @@ test_add_group()
     shift    
     for GROUP in "$@" ; do
         if is_group "$GROUP" ; then
-            sudo chgrp -R "$GROUP" "$DIR"
+            chgrp -R "$GROUP" "$DIR"
             return 0
         fi
     done
@@ -107,12 +91,12 @@ ensure_directory()
     local D="$1"
     if [ ! -d "$D" ] ; then
         echo "Directory '$D' does not exist, creating..."
-        sudo mkdir -p "$D"
+        mkdir -p "$D"
     fi
     if [ ! -w "$D" ] ; then
         echo "Directory '$D' is not writable by $USER, chgrp..."
         test_add_group "$D" "staff" "adm" "$USER" 
-        sudo chmod 775 "$D"
+        chmod 775 "$D"
     fi
     if [ ! -d "$D" ] || [ ! -w "$D" ] ; then
         echo "Failed to ensure writable directory '$D', should you run as root?"
@@ -305,6 +289,7 @@ if [ "$CLEANUP" = "True" ] ; then
 else
     TMPD="/tmp/$(basename "$SCRIPT_NAME" .sh)-${USER}"
     mkdir -p "$TMPD"
+    echo "Setting TMPD=$TMPD"
 fi
 
 trap cleanup EXIT
