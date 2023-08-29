@@ -1,0 +1,82 @@
+
+# MUST be specified in wrapper script
+#startup --nosystem_rc
+#startup --nohome_rc
+#startup --output_base <...>
+
+# -- Base Flags
+
+build --incompatible_enable_cc_toolchain_resolution
+build --incompatible_java_common_parameters
+build --color=auto
+build --cxxopt=-std=c++20
+build --strip=never
+build --features=pic
+
+# -- Compiler
+
+build:gcc     --//bazel/toolchain:compiler=gcc
+build:clang   --//bazel/toolchain:compiler=llvm16
+
+build:gcc12   --//bazel/toolchain:compiler=gcc12
+build:gcc13   --//bazel/toolchain:compiler=gcc13
+build:clang15 --//bazel/toolchain:compiler=llvm15
+build:clang16 --//bazel/toolchain:compiler=llvm16
+
+# -- stdcxx
+
+build:stdcxx --features=stdcxx
+
+build:libcxx --features=-stdcxx
+build:libcxx --features=libcxx
+
+# Lto
+
+build:lto --features=lto
+build:no_lto --features=-lto
+
+# -- Configurations 
+
+build:profile --features=benchmark
+build:benchmark --features=benchmark
+build:debug --compilation_mode=dbg
+build:release --compilation_mode=opt
+
+# -- Sanitizers
+build:asan --features=asan
+build:asan --copt -DADDRESS_SANITIZER
+build:asan --build_tag_filters=-no_san,-no_asan
+build:asan --test_tag_filters=-no_san,-no_asan
+build:asan --test_env="ASAN_OPTIONS=suppression=config/suppressions/asan.supp:color=always"
+build:asan --test_env="LSAN_OPTIONS=suppression=config/suppressions/lsan.supp:verbosity=1:log_threads=1:color=always"
+
+build:ubsan --config=usan
+build:usan --features=usan
+build:usan --copt -DUNDEFINED_SANITIZER
+build:usan --build_tag_filters=-no_san,-no_ubsan
+build:usan --test_tag_filters=-no_san,-no_ubsan
+build:usan --test_env="UBSAN_OPTIONS=suppression=config/suppressions/usan.supp:print_stacktrace=1:color=always"
+
+build:tsan --features=tsan
+build:tsan --copt -DTHREAD_SANITIZER
+build:tsan --build_tag_filters=-no_san,-no_tsan
+build:tsan --test_tag_filters=-no_san,-no_tsan
+build:tsan --test_env="TSAN_OPTIONS=suppression=config/suppressions/tsan.supp:print_stacktrace=1:color=always:second_deadlock_stack=1"
+
+# -- Compilation Database
+
+build:compdb --config=clang
+build:compdb --compilation_mode=dbg
+build:compdb --build_tag_filters=-nocompdb
+
+# -- Static Analysis
+
+build:static_analysis --config=clang
+build:static_analysis --compilation_mode=dbg
+build:static_analysis --@bazel_clang_tidy//:clang_tidy_config=//:clang_tidy_config
+build:static_analysis --aspects @bazel_clang_tidy//clang_tidy:clang_tidy.bzl%clang_tidy_aspect
+build:static_analysis --output_groups=report
+build:static_analysis --build_tag_filters=-no_static_analysis
+
+# Bazel will not let you reference the tool outside the sandbox
+build:static_analysis --@bazel_clang_tidy//:clang_tidy_executable=@rfts//bazel/toolchain:clangtidy_bin

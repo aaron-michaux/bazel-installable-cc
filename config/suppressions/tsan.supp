@@ -1,0 +1,5 @@
+
+# https://github.com/google/sanitizers/issues/953
+
+race:grpc_init
+

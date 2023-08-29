@@ -1,0 +1,8 @@
+compile_commands.json
+.cache
+TAGS
+bazel-bin
+bazel-out
+bazel-rfts
+bazel-testlogs
+explain.text
