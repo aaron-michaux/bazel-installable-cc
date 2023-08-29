@@ -47,15 +47,17 @@ archive_it()
 {
     local TOOL="$1"
     local ARCHIVE="${TOOL}--x86_64--${VENDOR}--linux.tar.xz"
-
-
-    if [ -f "$ARCHIVE.sha256" ] && [ -d "$ARCHIVE" ] ; then
+    cd "$TOOLCHAINS_DIR"
+    if [ ! -d "$TOOL" ] ; then
+        echo "archive $TOOL, skipping (directory missing)"
+        return 0
+    elif [ -f "$ARCHIVE.sha256" ] ; then
         if [ "$(sha256sum "$ARCHIVE")" = "$(cat $ARCHIVE.sha256)" ] ; then
             echo "archive $TOOL, skipping (already done)"
+            return 0
         fi
     fi
     echo "archive $TOOL"    
-    cd "$TOOLCHAINS_DIR"
     tar -c "$TOOL" | xz -c9e > "${ARCHIVE}"
     sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 }
@@ -118,8 +120,7 @@ for TOOL in $TOOLCHAINS ; do
             archive_it "$TOOL"
         else
             archive_it "$TOOL" &
-        fi
-        
+        fi        
     fi
 done
 
