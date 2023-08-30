@@ -26,11 +26,8 @@ EOF
 
 VENDOR=""
 if [ -x "/usr/bin/lsb_release" ] ; then    
-    PLATFORM="ubuntu"
-    VENDOR="$(/usr/bin/lsb_release -a 2>/dev/null | grep Codename | awk '{ print $2 }')"
-elif [ -f "/etc/fedora-release" ] ; then
-    PLATFORM="fedora"
-    echo "Not setup for Fedora, sorry!" 1>&2 && exit 1
+    PLATFORM="$(/usr/bin/lsb_release -a 2>/dev/null | grep Distributor | sed 's,^.*:,,' | awk '{ print $1 }' | tr '[:upper:]' '[:lower:]')"
+    VENDOR="$(/usr/bin/lsb_release -a 2>/dev/null | grep Codename | awk '{ print $2 }' | tr '[:upper:]' '[:lower:]')"
 elif [ "$(uname -s)" = "Darwin" ] ; then
     PLATFORM="macos"
     LIBTOOL=glibtool
@@ -46,7 +43,8 @@ fi
 archive_it()
 {
     local TOOL="$1"
-    local ARCHIVE="${TOOL}--x86_64--${VENDOR}--linux.tar.xz"
+    local TOOLROOT="${TOOL}--x86_64--${VENDOR}--linux"
+    local ARCHIVE="${TOOLROOT}.tar.xz"
     cd "$TOOLCHAINS_DIR"
     if [ ! -d "$TOOL" ] ; then
         echo "archive $TOOL, skipping (directory missing)"
@@ -58,7 +56,7 @@ archive_it()
         fi
     fi
     echo "archive $TOOL"    
-    tar -c "$TOOL" | xz -c9e > "${ARCHIVE}"
+    tar --transform "s/^$TOOL/${TOOLROOT}/" -c "$TOOL" | xz -c9e > "${ARCHIVE}"
     sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 }
 
