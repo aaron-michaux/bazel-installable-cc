@@ -224,6 +224,11 @@ build_gcc()
     cd gcc
     git fetch
     git checkout releases/gcc-${TAG}
+
+    if (( $MAJOR_VERSION <= 9 )) ; then
+        # some network configurations have trouble with 'ftp://' urls
+        sed -i contrib/download_prerequisites -e '/base_url=/s/ftp/http/'
+    fi
     contrib/download_prerequisites
 
     if [ -d "$SRCD/build" ] ; then rm -rf "$SRCD/build" ; fi
@@ -240,14 +245,7 @@ build_gcc()
          --disable-multilib \
          --program-suffix=-${MAJOR_VERSION} \
          --enable-checking=release \
-         --with-gcc-major-version-only \
-
-         #--with-zstd
-    # --with-gmp-lib 
-        # --with-mpfr-lib 
-        # --with-mpc-lib 
-        # --with-isl 
-
+         --with-gcc-major-version-only
     
     nice make -j$(nproc) 2>$SRCD/build/stderr.text | tee $SRCD/build/stdout.text
     nice make install | tee -a $SRCD/build/stdout.text
