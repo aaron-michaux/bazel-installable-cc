@@ -15,9 +15,6 @@ load(
 )
 load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
 load("@rules_cc//cc:defs.bzl", "cc_toolchain")
-load("@toolchain_initialization//:config.bzl",
-     "TOOLCHAIN_ROOT", "TOOLCHAIN_DOWNLOAD",
-     "SYS_CXX_INC_DIRS", "SYS_MACHINE")
 
 ALL_ACTIONS = [
     # Assembler actions
@@ -784,19 +781,8 @@ COMMON_ATTRIBUTES = {
 def _impl(ctx):
     tool_paths = calculate_toolchain_paths(ctx)
     extra_inc_dirs = ctx.attr.extra_include_directories if ctx.attr.extra_include_directories else []
-    build_inc_dirs = ctx.attr.cxx_builtin_include_directories + extra_inc_dirs
-
-    # outfile = ctx.actions.declare_file(ctx.label.name + "_install_check.sh")
-    # ctx.actions.write(
-    #     output = outfile,
-    #     content = "#!/bin/sh\necho {} | tee $@\n".format("Hello")
-    # )
-    
+    build_inc_dirs = ctx.attr.cxx_builtin_include_directories + extra_inc_dirs    
     return [
-        # DefaultInfo(
-        #     files = depset([outfile]),
-        #     executable = outfile,
-        # ),
         cc_common.create_cc_toolchain_config_info(
             ctx = ctx,
             target_cpu = ctx.attr.cpu,  # "linux_x86_64",
@@ -930,9 +916,7 @@ def make_toolchain_config(
     # Calculate the include directories
     if not cxx_builtin_include_directories:
         cxx_builtin_include_directories = compiler_default_directories(compiler, install_root, architecture, version)
-    # if extra_include_directories:
-    #     cxx_builtin_include_directories += extra_include_directories
-        
+
     # In the call below to `unix_toolchain_config`, we unpack **kargs.
     # This will throw an error if `kargs` wants to override any of the other
     # arguments. So we collate all arguments together directly in kargs.
@@ -970,26 +954,10 @@ def make_toolchain_config(
     unix_toolchain_config(**final_kargs)
     
 def make_toolchain(name, toolchain_config):
-
-    cmd = "echo 'system toolchain' | tee $@" # a No-op
-    if name != "gcc":
-        cmd = "./$(location install-toolchain.sh) -d {} -p {} {} | tee $@".format(
-            TOOLCHAIN_DOWNLOAD,
-            TOOLCHAIN_ROOT,
-            name
-        )        
-    native.genrule(
-        name = name + "_install_check",
-        srcs = [],        
-        cmd = cmd,    
-        outs = [name + "install-toolchain-log.text"],
-        tools = [":install-toolchain.sh"],
-    )
-
     cc_toolchain(
         name = name + "_cc_toolchain",
         all_files = ":compiler_deps",
-        compiler_files = ":" + name + "_install_check",
+        compiler_files = ":compiler_deps",
         dwp_files = ":empty",
         linker_files = ":compiler_deps",
         objcopy_files = ":empty",
@@ -1013,13 +981,14 @@ def make_toolchain(name, toolchain_config):
     )
     
 
-def make_toolchain_from_install_root(install_root, additional_args = {}):
+def make_toolchain_from_install_root(name, install_root, additional_args,
+                                     sys_machine, host_cxx_builtin_dirs,
+                                     is_default):
     """
     Logic to deduce toolchain parameters from install_root only
     """
-    is_default = (install_root == "/usr")    
-    label = "gcc"
-    config_label = "gcc" + "_config"
+    label = name
+    config_label = label + "_config"
     version = None
     
     if is_default:
@@ -1027,24 +996,23 @@ def make_toolchain_from_install_root(install_root, additional_args = {}):
             name = config_label,
             compiler = "gcc",
             install_root = "/usr",
-            architecture = SYS_MACHINE,
+            architecture = sys_machine,
             additional_args = additional_args,
-            cxx_builtin_include_directories = SYS_CXX_INC_DIRS,
+            cxx_builtin_include_directories = host_cxx_builtin_dirs,
         )
     else:               
-        basename = install_root.split("/")[-1] 
+        basename = install_root.split("/")[-1]
         is_gcc = basename.startswith("gcc")
         parts = basename.split("-")
-        is_clang = (parts[0] == "clang") or (parts[0] == "llvm")
+        is_clang = (parts[0] == "llvm")
         is_gcc = parts[0] == "gcc"
-        if len(parts) != 2 or (not is_clang and not is_gcc):
+        if len(parts) < 2 or (not is_clang and not is_gcc):
             fail("could not deduce clang/gcc from install_root: {}".format(install_root))
             return None
         version = parts[1]
         major_version = version.split(".")[0]
         architecture = "x86_64-pc-linux-gnu" if is_gcc else "x86_64-unknown-linux-gnu"
         suffix = ("-" + major_version) if is_gcc else ""
-        label = basename
         config_label = label + "_config"    
         make_toolchain_config(
             name = config_label,

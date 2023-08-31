@@ -5,10 +5,11 @@ set -eo pipefail
 CACHE_ROOT="$HOME/.cache/bazel"
 
 QUIET=false
-DOWNLOAD_ROOT="$CACHE_ROOT/downloads"
-TOOLCHAIN_ROOT="$CACHE_ROOT/toolchain"
+DOWNLOAD_DIR="$CACHE_ROOT/toolchains/downloads"
+INSTALL_PREFIX="$CACHE_ROOT/toolchains"
 URLS=""
 VENDOR=""
+KERNEL="$(uname -s)"
 CPU="$(uname -m)"
 MANIFEST=""
 PRINT_ONLY=false
@@ -53,8 +54,8 @@ show_help()
    Options:
 
       -q|--quiet                   Quiet mode
-      -d --download-dir <dirname>  Location of download directory; defaults ${DOWNLOAD_ROOT}
-      -p|--prefix       <dirname>  Installation prefix for downloaded compiler; default ${TOOLCHAIN_ROOT}
+      -d --download-dir <dirname>  Location of download cache directory; defaults ${DOWNLOAD_DIR}
+      -p|--prefix       <dirname>  Installation prefix for downloaded compiler; default ${INSTALL_PREFIX}
       -u|--url         <url-base>  Url to load toolchains from (effect is cummulative)
       -v|--vendor        <string>  Overload the OS vendor. (Otherwise automatically determined.)
       -c|--cpu           <string>  Overload the cpu. (Otherwise automatically determined.)
@@ -79,32 +80,16 @@ EOF
 
 archives()
 {
-    cat "$MANIFEST_FILE" | grep -Ev '^ *#?'
+    if [ -f "$MANIFEST" ] ; then
+        cat "$MANIFEST" | grep -Ev '^ *#' | grep -Ev '^ *$' || true
+    else
+        echo
+    fi
 }
 
 archive_line()
 {
-    archives | grep -i "$KERNEL" | grep -i "$CPU" | grep -i "$VERNDOR" | grep -i "$SELECT_TOOLCHAIN" | sort | tail -n 1
-}
-
-# ---------------------------------------------------------------------------------------------- gcc
-
-lookup_archive()
-{
-    local ARCHIVE_LINE="$(archive_line)"
-    if [ "$ARCHIVE_LINE" = "" ] ; then
-        echo "Failed to find toolchain archive, toolchain: $SELECT_TOOLCHAIN, kernel: $KERNEL, cpu: $CPU, vendor: $VENDOR" 1>&2
-        exit 1
-    fi
-
-    local FULL_VERSION="$(echo "$ARCHIVE_LINE" | awk '{ print $1 }')"
-    local ARCHIVE="$(echo "$ARCHIVE_LINE" | awk '{ print $2 }')"   
-    local HASHSUM="$(echo "$ARCHIVE_LINE" | awk '{ print $3 }')"   
-    local URL_BASE="https://toolchains.bootlin.com/downloads/releases/toolchains/x86-64/tarballs"
-    local URL="$URL_BASE/$ARCHIVE"
-    local INSTALL_DIR="gcc-${FULL_VERSION}"
-    
-    echo "${INSTALL_DIR} ${URL} ${HASHSUM}"
+    archives | grep -i "$KERNEL" | grep -i "$CPU" | grep -i "$VENDOR" | grep -i "$SELECT_TOOLCHAIN" | tail -n 1 || true
 }
 
 # ------------------------------------------------------------------------------------ get file hash
@@ -123,95 +108,91 @@ get_file_hash()
 
 download_archive()
 {
-    local URL="$1"
-    local HASH="$2"
-    local FNAME="$(basename "$URL")"
-    mkdir -p "$DOWNLOAD_ROOT"
-    local DEST_FILE="$DOWNLOAD_ROOT/$FNAME"
-    if [ -f "$DEST_FILE" ] && [ "$(get_file_hash "$DEST_FILE")" = "$HASH" ] ; then
-        return 0 # We're winners!
+    local ARCHIVE="$1"
+    local EXPECTED_HASH="$2"
+    
+    mkdir -p "$DOWNLOAD_DIR"
+    local DEST_FILE="$DOWNLOAD_DIR/$ARCHIVE"
+    if [ -f "$DEST_FILE" ] ; then
+        if [ "$(get_file_hash "$DEST_FILE")" = "$EXPECTED_HASH" ] ; then
+            return 0 # We're winners!
+        fi
     fi
-    ! $QUIET && echo "downloading url: $DEST_FILE" || true
-    wget $($QUIET && echo "" || echo "--show-progress") -O "$DEST_FILE" -o "$DEST_FILE.wget.log" "$URL"
-    local FILE_HASH="$(get_file_hash "$DEST_FILE")"
-    if [ "$FILE_HASH" != "$HASH" ] ; then
-        echo "failed to validate hash, url: $URL, expected-hash: $HASH, file-hash: $FILE_HASH" 1>&2
-        exit 1
-    fi
+
+    for URL in $URLS ; do
+        rm -f "$DEST_FILE" # There could have been an incomplete download
+        ! $QUIET && echo "Downloading url: $URL/$ARCHIVE" || true
+        if wget $($QUIET && echo "" || echo "--show-progress") -O "$DEST_FILE" -o "$DEST_FILE.wget.log" "$URL/$ARCHIVE"
+        then
+            
+            true # all is good
+        else
+            echo "Download failed, url: $URL/$ARCHIVE" 1>&2
+            continue
+        fi
+        local FILE_HASH="$(get_file_hash "$DEST_FILE")"
+        if [ "$FILE_HASH" != "$EXPECTED_HASH" ] ; then
+            echo "Failed to validate hash, url: $URL/$ARCHIVE, expected-hash: $EXPECTED_HASH, file-hash: $FILE_HASH" 1>&2
+        else            
+            return 0 # We're winners!
+        fi
+    done
+
+    echo "Failed to download '$ARCHIVE' from urls: $URLS, aborting" 1>&2
+    exit 1
 }
 
 # -------------------------------------------------------------------------------- install-toolchain
 
 install_toolchain()
 {
-    local TOOLCHAIN="$1"
-    local URL="$2"
-    local EXPECTED_HASH="$3"
-    local INSTALL_DIR="$TOOLCHAIN_ROOT/$TOOLCHAIN"
-    local ARCHIVE="$DOWNLOAD_ROOT/$(basename "$URL")"
+    local ARCHIVE="$1"
+    local EXPECTED_HASH="$2"
+    local TOOLCHAIN="$(basename "$ARCHIVE" .tar.xz)"
 
-
-    if [[ "$ARCHIVE" == *.tar.xz ]] ; then
-        EXTENSION=".tar.xz"
-        ARCCMD="xz"
-    else
-        EXTENSION=".tar.bz2"
-        ARCCMD="bzip2"
-    fi
-    local UNPACKED_DIRNAME="$(basename "$ARCHIVE" $EXTENSION)"
+    local INSTALL_DIR="$INSTALL_PREFIX/$TOOLCHAIN"
     local INSTALL_LOCK_FILE="$INSTALL_DIR/.install-complete.lock"
     
-    ! $QUIET && echo "selecting toolchain: $TOOLCHAIN" || true
+    ! $QUIET && echo "Selecting toolchain: $TOOLCHAIN" || true
 
     if [ -f "$INSTALL_LOCK_FILE" ] ; then
+        local LOCKFILE_HASH="$(cat "$INSTALL_LOCK_FILE" | awk '{ print $1 }')"
+        if [ "$LOCKFILE_HASH" != "$EXPECTED_HASH" ] ; then
+            echo "Installation corruption; Lock file exits, '$INSTALL_LOCK_FILE', with hash '$LOCKFILE_HASH'; however, the expected hash was '$EXPECTED_HASH" 1>&2
+            exit 1            
+        fi        
         # Assume installtion completed successfully
         return 0
     fi
     
     # Ensure the toolchain directory
-    if [ ! -d "$TOOLCHAIN_ROOT" ] ; then
-        ! $QUIET && echo "creating toolchain root directory: $TOOLCHAIN_ROOT" || true
-        mkdir -p "$TOOLCHAIN_ROOT"
-        if [ ! -d "$TOOLCHAIN_ROOT" ] ;then
-            echo "failed to create directory '$TOOLCHAIN_ROOT', aborting" \
-                && exit 1
+    if [ ! -d "$INSTALL_PREFIX" ] ; then
+        ! $QUIET && echo "Creating toolchain install prefix: $INSTALL_PREFIX" || true
+        mkdir -p "$INSTALL_PREFIX"
+        if [ ! -d "$INSTALL_PREFIX" ] ;then
+            echo "Failed to create directory '$INSTALL_PREFIX', aborting" 1>&2 && exit 1
         fi
     fi
 
     # May need to nuke what was there
     if [ -d "$INSTALL_DIR" ] ; then
-        ! $QUIET && echo "previous installation incomplete, deleting directory: $INSTALL_DIR" || true
+        ! $QUIET && echo "Previous installation incomplete, deleting directory: $INSTALL_DIR" || true
         rm -rf "$INSTALL_DIR"
     fi
     
     # Grab the installation
-    download_archive "$URL" "$EXPECTED_HASH"
-    ! $QUIET && echo "unpacking archive: $ARCHIVE" || true
-
+    download_archive "$ARCHIVE" "$EXPECTED_HASH"
+    
     # Untar it somewhere safe
-    cat "$ARCHIVE" | $ARCCMD -dc | tar -C "$TMPD" -xf -
+    ! $QUIET && echo "Unpacking archive: $ARCHIVE" || true
+    cat "$DOWNLOAD_DIR/$ARCHIVE" | xz -dc | tar -C "$TMPD" -xf -
 
     # Move the installation into place, and place "install" lock file
-    ! $QUIET && echo "finishing toolchain installation, install_dir: $INSTALL_DIR" || true
-    ! mv "$TMPD/$UNPACKED_DIRNAME" "$INSTALL_DIR" \
-        && echo "failed to install to '$INSTALL_DIR', aborting" \
+    ! $QUIET && echo "Finishing toolchain installation: $INSTALL_DIR" || true
+    ! mv "$TMPD/$TOOLCHAIN" "$INSTALL_PREFIX" \
+        && echo "failed to install to '$INSTALL_PREFIX', aborting" \
         && exit 1
     echo "$EXPECTED_HASH" > "$INSTALL_LOCK_FILE"
-}
-
-# -------------------------------------------------------------------------------------- install-gcc
-
-install()
-{
-    local ARCHIVE="$1"
-    local HASHSUM="$2"
-
-    
-    
-    local TOOLCHAIN="$(echo "$LINE" | awk '{ print $1}')"
-    local URL="$(echo "$LINE" | awk '{ print $2}')"
-    local EXPECTED_HASH="$(echo "$LINE" | awk '{ print $3}')"
-    install_toolchain "$TOOLCHAIN" "$URL" "$EXPECTED_HASH"
 }
 
 # ------------------------------------------------------------------------------- parse command line
@@ -226,12 +207,12 @@ while (( $# > 0 )) ; do
     shift
     [ "$ARG" = "-h" ] || [ "$ARG" = "--help" ] && show_help && exit 0
     [ "$ARG" = "-q" ] || [ "$ARG" = "--quiet" ] && QUIET=true && continue
-    [ "$ARG" = "-d" ] || [ "$ARG" = "--download-dir" ] && DOWNLOAD_ROOT="$1" && shift && continue
-    [ "$ARG" = "-p" ] || [ "$ARG" = "--prefix" ] && TOOLCHAIN_ROOT="$1" && shift && continue
+    [ "$ARG" = "-d" ] || [ "$ARG" = "--download-dir" ] && DOWNLOAD_DIR="$1" && shift && continue
+    [ "$ARG" = "-p" ] || [ "$ARG" = "--prefix" ] && INSTALL_PREFIX="$1" && shift && continue
     [ "$ARG" = "-u" ] || [ "$ARG" = "--url" ] && URLS+="$1 " && shift && continue
-    [ "$ARG" = "-v" ] || [ "$ARG" = "--vendor" ] && VENDOR="$1 " && shift && continue
-    [ "$ARG" = "-c" ] || [ "$ARG" = "--cpu" ] && CPU="$1 " && shift && continue
-    [ "$ARG" = "-m" ] || [ "$ARG" = "--manifest" ] && MANIFEST="$1 " && shift && continue
+    [ "$ARG" = "-v" ] || [ "$ARG" = "--vendor" ] && VENDOR="$1" && shift && continue
+    [ "$ARG" = "-c" ] || [ "$ARG" = "--cpu" ] && CPU="$1" && shift && continue
+    [ "$ARG" = "-m" ] || [ "$ARG" = "--manifest" ] && MANIFEST="$1" && shift && continue
     [ "$ARG" = "--print-only" ] && PRINT_ONLY=true && continue
     if [ "$SELECT_TOOLCHAIN" != "" ] ; then
         echo "Unexpected argument: '$ARG', aborting" 1>&2 && exit 1
@@ -241,70 +222,75 @@ done
 
 HAS_ERROR=false
 if [ "$KERNEL" != "Linux" ] && [ "$KERNEL" != "Darwin" ] ; then
-    echo "Only supports Linux and Darwin kernels, Kernel: $KERNEL" 1>&2
+    ! $PRINT_ONLY && echo "Only supports Linux and Darwin kernels, Kernel: $KERNEL" 1>&2
     HAS_ERROR=true
 fi
 
 if [ "$CPU" != "x86_64" ] && [ "$CPU" != "arm64" ] ; then
-    echo "Only supports x86_64 and arm64 cpus, Cpu: $CPU" 1>&2
+    ! $PRINT_ONLY && echo "Only supports x86_64 and arm64 cpus, Cpu: $CPU" 1>&2
     HAS_ERROR=true
 fi
 
 if [ "$VENDOR" = "" ] ; then
-    echo "Failed to detector Vendor and it was not supplied" 1>&2
+    ! $PRINT_ONLY && echo "Failed to detector Vendor and it was not supplied" 1>&2
     HAS_ERROR=true
 fi
 
 if [ "$URLS" = "" ] ; then
-    echo "No URLs were supplied" 1>&2
+    ! $PRINT_ONLY && echo "No URLs were supplied" 1>&2
     HAS_ERROR=true
 fi
 
 if [ "$MANIFEST" = "" ] ; then
-    echo "The manifest file was not supplied" 1>&2
+    ! $PRINT_ONLY && echo "The manifest file was not supplied" 1>&2
     HAS_ERROR=true
 elif [ ! -f "$MANIFEST" ] ; then
-    echo "File not found, manifest file: $MANIFEST" 1>&2
+    ! $PRINT_ONLY && echo "File not found, manifest file: '$MANIFEST'" 1>&2
     HAS_ERROR=true
 fi
 
 if [ "$SELECT_TOOLCHAIN" = "" ] ; then
-    echo "No toolchain was selected" 1>&2
+    ! $PRINT_ONLY && echo "No toolchain was selected" 1>&2
     HAS_ERROR=true
 fi
 
-if $HAS_ERROR ; then
-    echo "aborting" 1>&2
-    ! $PRINT_ONLY && exit 1
+if $HAS_ERROR && ! $PRINT_ONLY ; then
+    echo "Aborting..." 1>&2
+    exit 1
 fi
 
 ARCHIVE_LINE="$(archive_line)"
 if [ "$ARCHIVE_LINE" = "" ] ; then
-    echo "Failed to find toolchain archive, toolchain: $SELECT_TOOLCHAIN, kernel: $KERNEL, cpu: $CPU, vendor: $VENDOR" 1>&2
+    ! $PRINT_ONLY && echo "Failed to find toolchain archive, toolchain: $SELECT_TOOLCHAIN, kernel: $KERNEL, cpu: $CPU, vendor: $VENDOR" 1>&2
     ! $PRINT_ONLY && exit 1
 fi
 
 HASHSUM="$(echo "$ARCHIVE_LINE" | awk '{ print $1 }')"   
 ARCHIVE="$(echo "$ARCHIVE_LINE" | awk '{ print $2 }')"
-# TOOLCHAIN="$(echo "$ARCHIVE" | 
 
 # ------------------------------------------------------------------------------------------- action
 
 if $PRINT_ONLY ; then
     cat <<EOF
 QUIET            $($QUIET && echo "true" || echo "false")
-DOWNLOAD_ROOT    $DOWNLOAD_ROOT
-TOOLCHAIN_ROOT   $TOOLCHAIN_ROOT
-URLS             $URLS
-VENDOR           $VENDORS
+DOWNLOAD_CACHE   $DOWNLOAD_DIR
+INSTALL_PREFIX   $INSTALL_PREFIX
+SELECT_TOOLCHAIN $SELECT_TOOLCHAIN
 CPU              $CPU
-MANIFEST         $MANIFEST
+VENDOR           $VENDOR
+MANIFEST         $MANIFEST $([ ! -f "$MANIFEST" ] && echo -n "(Not found)")
 ARCHIVE          $ARCHIVE
 HASHSUM          $HASHSUM
 PRINT_ONLY       $($PRINT_ONLY && echo "true" || echo "false")
+
+URLs to attempt to download, in order: $([ "$URLS" = "" ] && echo "(No URLs specified)" || true)
 EOF
+    for URL in $URLS ; do
+        echo "   $URL/$ARCHIVE"
+    done
+    echo
     exit 0
 fi
 
-install "$ARCHIVE" "$HASHSUM"
+install_toolchain "$ARCHIVE" "$HASHSUM"
 

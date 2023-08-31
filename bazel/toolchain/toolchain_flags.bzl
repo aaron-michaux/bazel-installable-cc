@@ -1,8 +1,12 @@
+"""
+Contains ONE variable. If a single set of flags is insufficent, then
+this should be changed to a function that takes the toolchain name
+as a parameter.
+"""
 
-
-_COVERAGE_COMPILE_FLAGS = ["-DNDEBUG"]
-
-COMPILE_LINK_FLAGS = {
+# A dictionary of key-value pairs that are passed to the toolchain configuration
+# TODO change TOOLCHAIN_FLAGS to generate_toolchain_flags(toolchain)
+TOOLCHAIN_FLAGS = {    
     # For the feature: --features=warnings
     "warning_flags": [
         "-Wall",
@@ -40,7 +44,6 @@ COMPILE_LINK_FLAGS = {
     "benchmark_link_flags": [
         "-Wl,-z,now",
     ],
-    "coverage_compile_flags": _COVERAGE_COMPILE_FLAGS,
+    "coverage_compile_flags": ["-DNDEBUG"],
 }
-
 
