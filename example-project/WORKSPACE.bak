@@ -1,7 +1,6 @@
-workspace(name = "installable_toolchain")
+workspace(name = "example_project")
 
-# -- This workspace file is setup to test the installable-cc toolchain
-
+# -- Load in dependencies required for WORKSPACE
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
@@ -14,12 +13,6 @@ http_archive(
         "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
         "https://github.com/bazelbuild/bazel-skylib/releases/download/1.4.2/bazel-skylib-1.4.2.tar.gz",
     ],
-)
-
-git_repository(
-    name = "rules_cc",
-    commit = "7771fb57dd4d044aff08c2125d3ba5c8aaeef424",
-    remote = "https://github.com/bazelbuild/rules_cc.git"
 )
 
 git_repository(
@@ -40,9 +33,17 @@ git_repository(
     remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
 )
 
-load("//example-project/bazel/toolchain:toolchain_config.bzl", "URLS", "MANIFEST")
-load("//example-project/bazel/toolchain:toolchain_flags.bzl", "TOOLCHAIN_FLAGS")
-load("//:initialization.bzl", "initialize_toolchain")
+git_repository(
+    name = "installable_cc"
+    commit = "e16062717d9b098c3c2ac95717d2b3e661c50608"
+    remote = "git@github.com:aaron-michaux/bazel-installable-cc.git"
+)
+
+# -- Pick up the c/c++ toolchain
+
+load("//toolchain:toolchain_config.bzl", "URLS", "MANIFEST")
+load("//toolchain:toolchain_flags.bzl", "TOOLCHAIN_FLAGS")
+load("@installable_cc//:initialization.bzl", "initialize_toolchain")
 initialize_toolchain(
     urls = URLS,                       # Where toolchains are downloaded from
     manifest = MANIFEST,               # Availabe toolchains
@@ -65,6 +66,6 @@ http_archive(
     strip_prefix = "fmt-10.1.0",        
     sha256 = "deb0a3ad2f5126658f2eefac7bf56a042488292de3d7a313526d667f3240ca0a",        
     urls = ["https://github.com/fmtlib/fmt/archive/refs/tags/10.1.0.tar.gz"],
-    build_file = "//example-project/bazel/external:fmtlib.BUILD",
+    build_file = "//bazel/external:fmtlib.BUILD",
 )
-
+    
