@@ -18,19 +18,6 @@ build --remote_local_fallback   # Fallback to a local build if remote fails
 
 # -- Compiler
 
-# build:gcc     --//bazel/toolchain:compiler=gcc
-# build:clang   --//bazel/toolchain:compiler=llvm16
-
-# build:gcc9   --//bazel/toolchain:compiler=gcc9
-# build:gcc10   --//bazel/toolchain:compiler=gcc10
-# build:gcc11   --//bazel/toolchain:compiler=gcc11
-# build:gcc12   --//bazel/toolchain:compiler=gcc12
-# build:gcc13   --//bazel/toolchain:compiler=gcc13
-# build:llvm13 --//bazel/toolchain:compiler=llvm13
-# build:llvm14 --//bazel/toolchain:compiler=llvm14
-# build:llvm15 --//bazel/toolchain:compiler=llvm15
-# build:llvm16 --//bazel/toolchain:compiler=llvm16
-
 # The vendor can be auto-selected or manually specified
 #build         --repo_env=compiler-vendor=jammy
 build:gcc     --repo_env=compiler=host
@@ -64,41 +51,28 @@ build:benchmark --features=benchmark
 build:debug --compilation_mode=dbg
 build:release --compilation_mode=opt
 
-# -- Sanitizers
 build:asan --features=asan
-build:asan --copt -DADDRESS_SANITIZER
-build:asan --build_tag_filters=-no_san,-no_asan
-build:asan --test_tag_filters=-no_san,-no_asan
-build:asan --test_env="ASAN_OPTIONS=suppression=config/suppressions/asan.supp:color=always"
-build:asan --test_env="LSAN_OPTIONS=suppression=config/suppressions/lsan.supp:verbosity=1:log_threads=1:color=always"
+build:asan --test_env="ASAN_OPTIONS=suppression=example/config/suppressions/asan.supp:color=always"
+build:asan --test_env="LSAN_OPTIONS=suppression=example/config/suppressions/lsan.supp:verbosity=1:log_threads=1:color=always"
 
 build:ubsan --config=usan
 build:usan --features=usan
-build:usan --copt -DUNDEFINED_SANITIZER
-build:usan --build_tag_filters=-no_san,-no_ubsan
-build:usan --test_tag_filters=-no_san,-no_ubsan
-build:usan --test_env="UBSAN_OPTIONS=suppression=config/suppressions/usan.supp:print_stacktrace=1:color=always"
+build:usan --test_env="UBSAN_OPTIONS=suppression=example/config/suppressions/usan.supp:print_stacktrace=1:color=always"
 
 build:tsan --features=tsan
-build:tsan --copt -DTHREAD_SANITIZER
-build:tsan --build_tag_filters=-no_san,-no_tsan
-build:tsan --test_tag_filters=-no_san,-no_tsan
-build:tsan --test_env="TSAN_OPTIONS=suppression=config/suppressions/tsan.supp:print_stacktrace=1:color=always:second_deadlock_stack=1"
+build:tsan --test_env="TSAN_OPTIONS=suppression=example/config/suppressions/tsan.supp:print_stacktrace=1:color=always:second_deadlock_stack=1"
 
 # -- Compilation Database
 
 build:compdb --config=clang
 build:compdb --compilation_mode=dbg
-build:compdb --build_tag_filters=-nocompdb
 
 # -- Static Analysis
 
 build:static_analysis --config=clang
 build:static_analysis --compilation_mode=dbg
-build:static_analysis --@bazel_clang_tidy//:clang_tidy_config=//:clang_tidy_config
 build:static_analysis --aspects @bazel_clang_tidy//clang_tidy:clang_tidy.bzl%clang_tidy_aspect
 build:static_analysis --output_groups=report
 build:static_analysis --build_tag_filters=-no_static_analysis
-
-# Bazel will not let you reference the tool outside the sandbox
-build:static_analysis --@bazel_clang_tidy//:clang_tidy_executable=@rfts//bazel/toolchain:clangtidy_bin
+build:static_analysis --@bazel_clang_tidy//:clang_tidy_config=//:clang_tidy_config
+build:static_analysis --@bazel_clang_tidy//:clang_tidy_executable=@installable_toolchain//:clangtidy_bin

@@ -40,8 +40,8 @@ git_repository(
     remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
 )
 
-load("//example-project/bazel/toolchain:toolchain_config.bzl", "URLS", "MANIFEST")
-load("//example-project/bazel/toolchain:toolchain_flags.bzl", "TOOLCHAIN_FLAGS")
+load("//example/config:toolchain_config.bzl", "URLS", "MANIFEST")
+load("//example/config:toolchain_flags.bzl", "TOOLCHAIN_FLAGS")
 load("//:initialization.bzl", "initialize_toolchain")
 initialize_toolchain(
     urls = URLS,                       # Where toolchains are downloaded from
@@ -65,6 +65,6 @@ http_archive(
     strip_prefix = "fmt-10.1.0",        
     sha256 = "deb0a3ad2f5126658f2eefac7bf56a042488292de3d7a313526d667f3240ca0a",        
     urls = ["https://github.com/fmtlib/fmt/archive/refs/tags/10.1.0.tar.gz"],
-    build_file = "//example-project/bazel/external:fmtlib.BUILD",
+    build_file = "//example/config/external:fmtlib.BUILD",
 )
 

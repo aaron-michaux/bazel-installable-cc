@@ -18,19 +18,21 @@ Furthermore, as a matter of professional development, I wanted to do this projec
  * The toolchain can be customized by passing a dictionary of flags.
  * The available compilers (and download URLs) are passed in as configuration parameters.
  
-## Limitations
+## Supports
 
- * Supports Linux... intend some support for macos (with brew).
- * Could in theory support a cross compiler... no reason yet to create such.
+ * Linux only: Tested on Debian10, Ubuntu22.04, Oracle Linux 8.8
 
-## Work in progress
+## TODOs
 
- * Buildifier
- * Example project
  * Better defaults in the toolchain itself
+ * Check sanitizer run files work
+ * Buildifier
+ * format checks through aspect
+ * Ensure output-dir works -- no dumping of the analysis cache
+ * Front end script (bazel aspects?? build.sh??? makefile????)
+   - Front end should run under valgrind/helgrind with suppressions
+   - Front end should auto-support gdb for any target
  * Cross-compiler
- 
-*PRETTY MUCH EVERYTHING*
-
+ * Works on macos (with brew)
 
 
