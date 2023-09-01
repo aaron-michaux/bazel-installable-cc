@@ -322,7 +322,7 @@ def initialization_impl_(repo_ctx):
         info(repo_ctx, "selecting compiler: {}".format(repo_ctx.path(toolchain_directory).basename))
 
     # Copy in :toolchain_common.bzl
-    repo_ctx.file("toolchain_common.bzl", content = repo_ctx.read(Label(":toolchain_common.bzl")), executable = False)
+    repo_ctx.file("toolchain_common.bzl", content = repo_ctx.read(Label("//src:toolchain_common.bzl")), executable = False)
          
     # Set up the BUILD template
     flags = repo_ctx.attr.toolchain_flags if repo_ctx.attr.toolchain_flags else []
@@ -335,7 +335,7 @@ def initialization_impl_(repo_ctx):
     }
 
     # Create the BUILD file
-    repo_ctx.template("BUILD", Label(":BUILD.tpl"), template_substitutions, executable = False)
+    repo_ctx.template("BUILD", Label("//src:BUILD.tpl"), template_substitutions, executable = False)
 
 initialization = repository_rule(
     implementation = initialization_impl_,
