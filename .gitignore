@@ -3,6 +3,6 @@ compile_commands.json
 TAGS
 bazel-bin
 bazel-out
-bazel-rfts
+bazel-bazel-installable-cc
 bazel-testlogs
 explain.text

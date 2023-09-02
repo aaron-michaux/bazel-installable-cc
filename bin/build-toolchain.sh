@@ -120,7 +120,7 @@ install_dependences()
              gcc-multilib python3-dev python3-pip python3-tk python3-lxml python3-six \
              libparted-dev flex sphinx-doc guile-2.2 gperf gettext expect tcl dejagnu \
              libgmp-dev libmpfr-dev libmpc-dev patchelf liblz-dev pax-utils bison flex \
-             libxapian-dev
+             libxapian-dev lld
 
     elif [ "$VENDOR" = "oracle" ] ; then
         sudo yum install -y bison xapian-core-devel
@@ -175,12 +175,13 @@ build_llvm()
     git pull origin main
     git checkout "llvmorg-${VERSION}"
 
-    # local EXTRA_LLVM_DEFINES=""
-    # local MAJOR_VERSION="$(echo "$VERSION" | awk -F. '{ print $1 }')"
-    # if (( $MAJOR_VERSION <= 12 )) ; then
-    #     EXTRA_LLVM_DEFINES="-D COMPILER_RT_BUILD_GWP_ASAN=Off -D COMPILER_RT_BUILD_LIBFUZZER=Off -D COMPILER_RT_BUILD_ORC=Off -D COMPILER_RT_BUILD_SANITIZERS=OFF"
-    #     #-DBacktrace_INCLUDE_DIR=$INSTALL_PREFIX/include -DBacktrace_LIBRARY=$INSTALL_PREFIX/lib/libexecinfo.so
-    # fi
+    local EXTRA_LLVM_DEFINES=""
+    local MAJOR_VERSION="$(echo "$VERSION" | awk -F. '{ print $1 }')"
+    if (( $MAJOR_VERSION <= 12 )) ; then
+        EXTRA_LLVM_DEFINES="-D LLVM_USE_LINKER=lld"
+        # EXTRA_LLVM_DEFINES="-D COMPILER_RT_BUILD_GWP_ASAN=Off -D COMPILER_RT_BUILD_LIBFUZZER=Off -D COMPILER_RT_BUILD_ORC=Off -D COMPILER_RT_BUILD_SANITIZERS=OFF"
+        #     #-DBacktrace_INCLUDE_DIR=$INSTALL_PREFIX/include -DBacktrace_LIBRARY=$INSTALL_PREFIX/lib/libexecinfo.so
+    fi
     
     cd "$BUILD_D"
     
@@ -194,11 +195,10 @@ build_llvm()
          -D LIBCXX_ENABLE_STATIC_ABI_LIBRARY=Yes \
          -D LIBCXX_ENABLE_SHARED=YES \
          -D LIBCXX_ENABLE_STATIC=YES \
+         -D LLVM_ENABLE_LLD=ON \
          -D LLVM_BUILD_LLVM_DYLIB=YES \
          -D LLVM_LIBC_ENABLE_LINTING=Off \
-         -D LLVM_USE_LINKER=lld \
          -D COMPILER_RT_ENABLE_IOS:BOOL=Off \
-         $EXTRA_LLVM_DEFINES \
          -D CMAKE_INSTALL_PREFIX:PATH="$INSTALL_PREFIX" \
          $SRC_D/llvm-project/llvm
 

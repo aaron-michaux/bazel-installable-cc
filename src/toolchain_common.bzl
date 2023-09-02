@@ -52,25 +52,22 @@ ALL_COMPILE_ACTIONS = [
     ACTION_NAMES.cpp_header_parsing,
 ]
 
-ALL_C_COMPILE_ACTIONS = [
-    ACTION_NAMES.c_compile,
-]
-
-ALL_CPP_COMPILE_ACTIONS = [
-    ACTION_NAMES.preprocess_assemble,
-    ACTION_NAMES.assemble,
-    ACTION_NAMES.cc_flags_make_variable, # Propagates CC_FLAGS to genrules
-    ACTION_NAMES.cpp_compile,
-    ACTION_NAMES.cpp_header_parsing,
-]
-
 PREPROCESSOR_COMPILE_ACTIONS = [
     ACTION_NAMES.preprocess_assemble,
     ACTION_NAMES.assemble,
 ]
 
+ALL_C_COMPILE_ACTIONS = [
+    ACTION_NAMES.c_compile,
+]
 
-ALL_LINK_ACTIONS = [
+ALL_CPP_COMPILE_ACTIONS = [
+    ACTION_NAMES.cc_flags_make_variable, # Propagates CC_FLAGS to genrules
+    ACTION_NAMES.cpp_compile,
+    ACTION_NAMES.cpp_header_parsing,
+]
+
+LINK_ACTIONS = [
     ACTION_NAMES.cpp_link_dynamic_library,
     ACTION_NAMES.cpp_link_nodeps_dynamic_library,
     ACTION_NAMES.cpp_link_executable,
@@ -85,47 +82,72 @@ LTO_INDEX_ACTIONS = [
     ACTION_NAMES.lto_index_for_nodeps_dynamic_library,
 ]
 
+ALL_LINK_ACTIONS = LINK_ACTIONS + LTO_INDEX_ACTIONS
+
+def combine_flags(set1, set2):
+    if not set2:
+        return set1
+    flags = set1 + [x for x in set2 if x not in set1]
+    return flags
+
+def make_flagset(actions, flags, features = None):
+    if len(flags) == 0:
+        return None
+    if features:
+        return flag_set(
+            actions = actions,
+            flag_groups = [flag_group(flags = flags)],
+            with_features = [with_feature_set(features = features)],
+        )
+    return flag_set(actions = actions, flag_groups = ([flag_group(flags = flags)]))
+
+
 def default_flagsets(ctx):
-    return [
-        flag_set(
-            actions = ALL_COMPILE_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.base_compile_flags)] if ctx.attr.base_compile_flags else []),
-        ),
-        flag_set(
-            actions = ALL_COMPILE_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.dbg_compile_flags)] if ctx.attr.dbg_compile_flags else []),
-            with_features = [with_feature_set(features = ["dbg"])],
-        ),
-        flag_set(
-            actions = ALL_COMPILE_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.opt_compile_flags)] if ctx.attr.opt_compile_flags else []),
-            with_features = [with_feature_set(features = ["opt"])],
-        ),
-        flag_set(
-            actions = ALL_COMPILE_ACTIONS + [ACTION_NAMES.lto_backend],
-            flag_groups = ([flag_group(flags = ctx.attr.cxx_flags)] if ctx.attr.cxx_flags else []),
-        ),
-        flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.base_link_flags)] if ctx.attr.base_link_flags else []),
-        ),
-        flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.dbg_link_flags)] if ctx.attr.dbg_link_flags else []),
-            with_features = [with_feature_set(features = ["dbg"])],
-        ),
-        flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.opt_link_flags)] if ctx.attr.opt_link_flags else []),
-            with_features = [with_feature_set(features = ["opt"])],
-        ),
+    # Compile flags
+    base_comp_flags = combine_flags([], ctx.attr.base_compile_flags)
+    c_flags = combine_flags([], ctx.attr.c_flags)
+    cxx_flags = combine_flags([], ctx.attr.cxx_flags)
+    dbg_comp_flags = combine_flags(["-O0", "-g"], ctx.attr.dbg_compile_flags)
+    opt_comp_flags = combine_flags(["-O3", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
+                                   ctx.attr.opt_compile_flags)
+    coverage_comp_flags = combine_flags([], ctx.attr.coverage_compile_flags)
+    benchmark_comp_flags = combine_flags(["-O3", "-g", "-fno-omit-frame-pointer"],
+                                         ctx.attr.benchmark_compile_flags)
+
+    
+    # Link flags
+    base_link_flags = combine_flags([], ctx.attr.base_link_flags)
+    dbg_link_flags = combine_flags(["-g", "-Wl,-no-as-needed"], ctx.attr.dbg_link_flags)
+    opt_link_flags = combine_flags(["-Wl,--gc-sections"], ctx.attr.opt_link_flags)
+    coverage_link_flags = combine_flags([], ctx.attr.coverage_link_flags)
+    benchmark_link_flags = combine_flags(["-Wl,-z,now"], ctx.attr.benchmark_link_flags)
+
+    # Build `flagsets`
+    flagsets = [
+        # Compiler
+        make_flagset(ALL_COMPILE_ACTIONS, base_comp_flags),
+        make_flagset(ALL_C_COMPILE_ACTIONS, c_flags),
+        make_flagset(ALL_CPP_COMPILE_ACTIONS, cxx_flags),
+        make_flagset(ALL_COMPILE_ACTIONS, dbg_comp_flags, ["dbg"]),        
+        make_flagset(ALL_COMPILE_ACTIONS, opt_comp_flags, ["opt"]),
+        make_flagset(ALL_COMPILE_ACTIONS, benchmark_comp_flags, ["benchmark"]),
+        make_flagset(ALL_COMPILE_ACTIONS, coverage_comp_flags, ["coverage"]),
+        # Linker
+        make_flagset(ALL_LINK_ACTIONS, base_link_flags),
+        make_flagset(ALL_LINK_ACTIONS, dbg_link_flags, ["dbg"]),
+        make_flagset(ALL_LINK_ACTIONS, opt_link_flags, ["opt"]),
+        make_flagset(ALL_LINK_ACTIONS, coverage_link_flags, ["coverage"]),
+        make_flagset(ALL_LINK_ACTIONS, benchmark_link_flags, ["benchmark"]),
     ]
 
-def default_warnings(ctx):
+    return [x for x in flagsets if x] # Filter out 'None' flagsets
+
+def warning_flags(ctx):
+    flags = combine_flags(["-Wall"], ctx.attr.warning_flags)
     return [
         flag_set(
             actions = ALL_COMPILE_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.warning_flags)] if ctx.attr.warning_flags else []),
+            flag_groups = ([flag_group(flags = flags)]),
         ),
     ]
 
@@ -137,19 +159,22 @@ def warning_error_flags(ctx):
         ),
     ]
 
-def stdcxx_flags(ctx):
+def default_stdlib_flags(ctx):
+    install_root = ctx.attr.install_root
+    if "libcxx" in ctx.features or "stdcxx" in ctx.features:
+        return []
+    return stdcxx_flags(ctx) # Defaults to 'libstdcxx'
 
-    install_root = ctx.attr.install_root if ctx.attr.install_root else "/usr"
-    
+def stdcxx_flags(ctx):
+    install_root = ctx.attr.install_root    
     link_flags = ["-lstdc++", "-lm"]
     if ctx.attr.install_root and ctx.attr.install_root != "/usr":
         link_flags += [
             "-Wl,-rpath," + install_root + "/lib64",
-        ]
-    
+        ]    
     return [
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = ALL_LINK_ACTIONS,
             flag_groups = ([flag_group(flags = link_flags)]),
             with_features = [with_feature_set(features = [], not_features = ["libcxx"])],
         ),
@@ -165,16 +190,13 @@ def libcxx_flags(ctx):
     Returns:
       flagset suitable for a compiler 'feature'
     """
-    if ctx.attr.compiler != "gcc" and ctx.attr.compiler != "clang":
-        fail("invalid compiler")
+    if ctx.attr.compiler != "clang":
+        fail("libcxx in only supported with the clang compiler")
 
     system_llvm_root = "/opt/local/llvm"
-    install_root = system_llvm_root if ctx.attr.compiler == "gcc" else (ctx.attr.install_root if ctx.attr.install_root else "/usr")
-
-    architecture = ctx.attr.architecture if ctx.attr.architecture else "x86_64-linux-gnu"
-    
-    #    print ("INSTALL_ROOT", install_root)
-    
+    install_root = ctx.attr.install_root
+    architecture = ctx.attr.architecture
+        
     return [
         flag_set(
             actions = ALL_CPP_COMPILE_ACTIONS,
@@ -337,18 +359,6 @@ def tsan_flags(ctx):
         ),
     ]
 
-def toolchain_benchmark_flags(ctx):
-    return [
-        flag_set(
-            actions = ALL_COMPILE_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.benchmark_compile_flags)] if ctx.attr.benchmark_compile_flags else []),
-        ),
-        flag_set(
-            actions = ALL_LINK_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.benchmark_link_flags)] if ctx.attr.benchmark_link_flags else []),
-        ),
-    ]
-
 def lto_flags(ctx):
     """
     Generate lto flags for the given compiler context
@@ -390,14 +400,6 @@ def lto_flags(ctx):
     if ctx.attr.compiler == "clang":
         return _LTO_CLANG_FLAGS
     fail("invalid compiler")
-
-def unfiltered_compile_flags(ctx):
-    return [
-        flag_set(
-            actions = ALL_COMPILE_ACTIONS,
-            flag_groups = ([flag_group(flags = ctx.attr.unfiltered_compile_flags)] if ctx.attr.unfiltered_compile_flags else []),
-        ),
-    ]
 
 def pic_flags(ctx):
     return [
@@ -642,52 +644,61 @@ def strip_debug_symbols_flags(ctx):
 
 def make_base_features(ctx):
     return [
-        # TODO stdcxx => stdcxx
-
         feature(name = "defaults", enabled = True, flag_sets = default_flagsets(ctx)),
-        feature(name = "stdcxx", enabled = True, flag_sets = stdcxx_flags(ctx)),
+
+        # C++ standards, cxx11, cxx14, cxx17, cxx20, cxx23
+        # feature(name = "std
+        
+        # Preprocessor Options
+        feature(
+            name = "no_canonical_system_headers",
+            enabled = True,
+            flag_sets = no_canonical_system_headers_flags(ctx)
+        ),        
+        
+        # Standard Library
+        feature(name = "default_stdlib", enabled = True, flag_sets = default_stdlib_flags(ctx)),
+        feature(name = "stdcxx", enabled = False, flag_sets = stdcxx_flags(ctx)),
         feature(name = "libcxx", enabled = False, flag_sets = libcxx_flags(ctx)),
-        feature(name = "shared_flag", flag_sets = shared_flags(ctx)),
+        
+        # Pic
+        feature(name = "pic", enabled = False, flag_sets = pic_flags(ctx)),
+        feature(name = "supports_pic", enabled = True),
+        
+        # Warnings
+        feature(name = "warnings", enabled = True, flag_sets = warning_flags(ctx)),
+        feature(name = "warn_error", enabled = False, flag_sets = warning_error_flags(ctx)),
+
+        # Sanitizers
         feature(name = "asan", enabled = False, flag_sets = asan_flags(ctx)),
         feature(name = "usan", enabled = False, flag_sets = usan_flags(ctx)),
         feature(name = "ubsan", enabled = False, flag_sets = usan_flags(ctx)),
         feature(name = "tsan", enabled = False, flag_sets = tsan_flags(ctx), implies = ["pic"]),
-        feature(name = "lto", enabled = False, flag_sets = lto_flags(ctx), implies = ["toolchain_linker"]),
-        feature(name = "pic", enabled = False, flag_sets = pic_flags(ctx)),
-        feature(name = "warnings", enabled = False, flag_sets = default_warnings(ctx)),
-        feature(name = "warn_error", enabled = False, flag_sets = warning_error_flags(ctx)),
+
+        # Optimization levels
+        feature(name = "dbg"),
+        feature(name = "fastbuild"),
+        feature(name = "opt"),
+        feature(name = "benchmark", implies = ["fastbuild"]),
+
+        # Linkers
         feature(name = "gold_linker", enabled = False, flag_sets = gold_linker_flags(ctx)),
         feature(name = "lld_linker", enabled = False, flag_sets = lld_linker_flags(ctx)),
         feature(name = "toolchain_linker", enabled = True, flag_sets = toolchain_linker_flags(ctx)),
-        feature(name = "supports_pic", enabled = True),
-        feature(name = "supports_start_end_lib", enabled = True),
-        feature(name = "dbg"),
-        feature(name = "opt"),
-        feature(name = "benchmark", enabled = False, flag_sets = toolchain_benchmark_flags(ctx)),
-        feature(
-            name = "no_canonical_system_headers",
-            enabled = True,
-            flag_sets = no_canonical_system_headers_flags(ctx),
-        ),
-        feature(
+
+        # Extra linker flags
+        feature(name = "shared_flag", flag_sets = shared_flags(ctx)),
+        feature(name = "lto", enabled = False, flag_sets = lto_flags(ctx), implies = ["toolchain_linker"]),        
+        feature(name = "supports_start_end_lib", enabled = True),        
+        feature( # Add rpaths to binary
             name = "runtime_library_search_directories_feature",
             enabled = True,
             flag_sets = runtime_library_search_flags(ctx),
         ),
-        feature(
-            name = "unfiltered_compile_flags",
-            enabled = False,
-            flag_sets = unfiltered_compile_flags(ctx),
-        ),
-        feature(
-            name = "coverage",
-            flag_sets = coverage_flags(ctx),
-            provides = ["profile"],
-        ),
-        feature(
-            name = "strip_debug_symbols",
-            flag_sets = strip_debug_symbols_flags(ctx),
-        )
+
+        # Misc. Features
+        feature(name = "coverage", flag_sets = coverage_flags(ctx), provides = ["profile"]),
+        feature(name = "strip_debug_symbols", flag_sets = strip_debug_symbols_flags(ctx))
     ]
 
 def calculate_toolchain_paths(ctx):
@@ -748,8 +759,8 @@ COMMON_ATTRIBUTES = {
     "compiler": attr.string(mandatory = True),
     "version": attr.string(mandatory = False),  # The compiler version for directory includes
     "install_root": attr.string(mandatory = True),  # install root of compiler
-    "prefix": attr.string(mandatory = False),  # prefix prepended before tool name
-    "suffix": attr.string(mandatory = False),  # suffix appended to tools, like "-9" for "gcc-9"
+    "prefix": attr.string(), # prefix prepended before tool name
+    "suffix": attr.string(), # suffix appended to tools, like "-9" for "gcc-9"
     "architecture": attr.string(mandatory = True), # 'x86_64-linux-gnu' etc
     "toolchain_identifier": attr.string(mandatory = True),
     "host_system_name": attr.string(mandatory = True),
@@ -759,23 +770,30 @@ COMMON_ATTRIBUTES = {
     "abi_libc_version": attr.string(mandatory = True),
     "cxx_builtin_include_directories": attr.string_list(mandatory = True),
     "tool_paths": attr.string_dict(),
-    "base_compile_flags": attr.string_list(mandatory = True),
-    "dbg_compile_flags": attr.string_list(mandatory = True),
-    "opt_compile_flags": attr.string_list(mandatory = True),
-    "benchmark_compile_flags": attr.string_list(),
-    "cxx_flags": attr.string_list(),
-    "base_link_flags": attr.string_list(mandatory = True),
-    "dbg_link_flags": attr.string_list(mandatory = True),
-    "opt_link_flags": attr.string_list(mandatory = True),
-    "extra_include_directories": attr.string_list(),
-    "benchmark_link_flags": attr.string_list(),
-    "link_libs": attr.string_list(),
-    "warning_flags": attr.string_list(),  # For the feature: --features=warnings
-    "unfiltered_compile_flags": attr.string_list(),
-    "coverage_compile_flags": attr.string_list(),
-    "coverage_link_flags": attr.string_list(),
     "supports_start_end_lib": attr.bool(),
+    "llvm_toolchain_root": attr.string_list(),
+
+    # Misc clags
+    "warning_flags": attr.string_list(),  # For the feature: --features=warnings
+    "extra_include_directories": attr.string_list(),
     "builtin_sysroot": attr.string(),
+
+    # Compilation flags
+    "base_compile_flags": attr.string_list(),
+    "dbg_compile_flags": attr.string_list(),
+    "opt_compile_flags": attr.string_list(),
+    "coverage_compile_flags": attr.string_list(),
+    "benchmark_compile_flags": attr.string_list(),
+    "c_flags": attr.string_list(),
+    "cxx_flags": attr.string_list(),
+
+    # Linker flags
+    "base_link_flags": attr.string_list(),
+    "dbg_link_flags": attr.string_list(),
+    "opt_link_flags": attr.string_list(),
+    "coverage_link_flags": attr.string_list(),
+    "benchmark_link_flags": attr.string_list(),
+    "link_libs": attr.string_list(),    
 }
 
 def _impl(ctx):

@@ -9,41 +9,51 @@ as a parameter.
 TOOLCHAIN_FLAGS = {    
     # For the feature: --features=warnings
     "warning_flags": [
-        "-Wall",
-        "-Wextra",
+        "-Wextra", #
+        # Include ["-Wall"]
     ],
-    "base_compile_flags": [],
+    "base_compile_flags": [
+        # Extra flags passed th
+        "-std=c++20"
+    ],
+    "c_flags": [
+        # Flags passed to CXX compilation only
+    ],
+    "cxx_flags": [
+        # Flags passed to CXX compilation only
+    ],
     "dbg_compile_flags": [
-        "-g",
-        "-O0",
-        "-fno-omit-frame-pointer",
+        # Extra flags when building `-c dbg`
+        # Includes: ["-O0", "-g"]
     ],
     "opt_compile_flags": [
-        "-DNDEBUG",
-        "-O3",
-        "-ffunction-sections",  # necessary for deadcode elimination
-        "-fdata-sections",  # ibid
         "-fstack-protector",  # basic buffer-overflow protection
+        # Includes: ["-O3", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"]
     ],
-    "benchmark_compile_flags": [
-        "-DNDEBUG",
-        "-O3",
-        "-fno-omit-frame-pointer",
+    "coverage_compile_flags": [
+        # Link flags passed when --features coverage
+        "-DNDEBUG"
     ],
-    "base_link_flags": [],
+    "benchmark_compile_flags": [        
+        # Includes: ["-O3", "-g", "-fno-omit-frame-pointer"]
+    ],
+    "base_link_flags": [
+        # Passed to all link actions
+    ],
     "dbg_link_flags": [
-        "-g",
-        "-Wl,-no-as-needed",  # turn off "weak-linking" optimization
         "-Wl,-z,relro,-z,now",
+        # Includes: ["-g", "-Wl,-no-as-needed"]
     ],
     "opt_link_flags": [
-        "-Wl,--gc-sections",  # linker garbage collects deadcode
         "-Wl,-z,relro",  # shared-library jump table is read-only
         "-Wl,-z,now",  # dynamic linker eagerly binds symbols
+        # Includes: ["-Wl,--gc-sections"]
+    ],
+    "coverage_link_flags": [
+        # Link flags passed when --features coverage
     ],
     "benchmark_link_flags": [
-        "-Wl,-z,now",
+        "-Wl,-z,now", # dynamic linker eagerly binds symbols
     ],
-    "coverage_compile_flags": ["-DNDEBUG"],
 }
 
