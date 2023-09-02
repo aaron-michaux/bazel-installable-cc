@@ -640,7 +640,7 @@ def make_c_cxx_standards_features(ctx):
         "c++26", "gnu++26",
     ]
 
-    return [feature(name = std.replace("++", "xx"),
+    return [feature(name = std,
                     flag_sets = [make_flagset(ALL_CPP_COMPILE_ACTIONS, ["-std=" + std])])
             for std in cxx_standards]    
 

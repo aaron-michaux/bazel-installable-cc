@@ -11,6 +11,7 @@ build --incompatible_java_common_parameters
 build --color=auto
 build --strip=never
 build --features=pic
+build --features=c++17
 
 # -- Remote...
 build --remote_local_fallback   # Fallback to a local build if remote fails

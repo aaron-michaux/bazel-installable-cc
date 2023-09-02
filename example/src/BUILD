@@ -7,6 +7,7 @@ cc_binary(
         ":some_lib_lib",
         "@fmtlib//:fmt",
     ],
+    data = ["//example/config/suppressions:all"]
 )
 
 cc_library(
