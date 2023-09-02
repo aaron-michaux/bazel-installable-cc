@@ -272,7 +272,7 @@ while (( $# > 0 )) ; do
     [ "$ARG" = "--no-cleanup" ]    && export CLEANUP="False" && continue
     [ "$ARG" = "--force" ] || [ "$ARG" = "-f" ] && export FORCE_INSTALL="True" && continue
     [ "$ARG" = "--install-dependencies" ] && INSTALL_DEPS = "True" && continue
-    [ "$ARG" = "--toolchain-root"  && export TOOLCHAINS_DIR="$1" && shift && continue
+    [ "$ARG" = "--toolchain-root" ] && export TOOLCHAINS_DIR="$1" && shift && continue
     
     if [ "${ARG:0:3}" = "gcc" ] ; then
         COMPILER="gcc"
@@ -297,8 +297,8 @@ if [ "$INSTALL_DEPS" = "True" ] ; then
     install_dependences
 fi
 
-if [ "$COMMAND" = "" ] ; then
-    echo "Must specify a build command!" 1>&2 && exit 1
+if [ "$COMPILER" = "" ] ; then
+    echo "Must specify a compiler to build!" 1>&2 && exit 1
 fi
 
 SCRIPT_NAME="$(basename "$THIS_SCRIPT")"
