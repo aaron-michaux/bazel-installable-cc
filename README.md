@@ -24,10 +24,10 @@ Furthermore, as a matter of professional development, I wanted to do this projec
 
 ## TODOs
 
- * Better defaults in the toolchain itself
  * Check sanitizer run files work
  * Buildifier
- * format checks through aspect
+ * clang-format checks through aspect
+ * compdb
  * Ensure output-dir works -- no dumping of the analysis cache
  * Front end script (bazel aspects?? build.sh??? makefile????)
    - Front end should run under valgrind/helgrind with suppressions

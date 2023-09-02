@@ -20,7 +20,8 @@ build --remote_local_fallback   # Fallback to a local build if remote fails
 # The vendor can be auto-selected or manually specified
 #build         --repo_env=compiler-vendor=jammy
 build:gcc     --repo_env=compiler=host
-build:clang   --repo_env=compiler=llvm-16.0.6
+build:llvm    --repo_env=compiler=llvm-16.0.6
+build:clang   --config=llvm
 build:gcc9    --repo_env=compiler=gcc-9.5.0
 build:gcc10   --repo_env=compiler=gcc-10.5.0
 build:gcc11   --repo_env=compiler=gcc-11.4.0
@@ -36,7 +37,7 @@ build:llvm16  --repo_env=compiler=llvm-16.0.6
 build:stdcxx --features=stdcxx
 build:libcxx --features=libcxx
 
-# Lto
+# -- Lto
 
 build:lto --features=lto
 build:no_lto --features=-lto
@@ -61,7 +62,7 @@ build:tsan --test_env="TSAN_OPTIONS=suppression=example/config/suppressions/tsan
 
 # -- Compilation Database
 
-build:compdb --config=clang
+build:compdb --config=llvm
 build:compdb --compilation_mode=dbg
 
 # -- Static Analysis
@@ -72,4 +73,4 @@ build:static_analysis --aspects @bazel_clang_tidy//clang_tidy:clang_tidy.bzl%cla
 build:static_analysis --output_groups=report
 build:static_analysis --build_tag_filters=-no_static_analysis
 build:static_analysis --@bazel_clang_tidy//:clang_tidy_config=//:clang_tidy_config
-build:static_analysis --@bazel_clang_tidy//:clang_tidy_executable=@installable_toolchain//:clangtidy_bin
+build:static_analysis --@bazel_clang_tidy//:clang_tidy_executable=//:clang_tidy_bin

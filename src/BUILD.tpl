@@ -29,7 +29,7 @@ make_toolchain_from_install_root(
 # -- Clang Tidy
 
 binary_alias(
-    name = "clangtidy_bin",
+    name = "clang_tidy_bin",
     src = TOOLCHAIN_DIRECTORY + "/bin/clang-tidy",
 )
 

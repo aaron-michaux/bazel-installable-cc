@@ -190,7 +190,7 @@ def libcxx_flags(ctx):
     Returns:
       flagset suitable for a compiler 'feature'
     """
-    if ctx.attr.compiler != "clang":
+    if "libcxx" in ctx.features and ctx.attr.compiler != "clang":
         fail("libcxx in only supported with the clang compiler")
 
     system_llvm_root = "/opt/local/llvm"

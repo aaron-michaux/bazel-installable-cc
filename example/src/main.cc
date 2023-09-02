@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 
+// NOLINTNEXTLINE(bugprone-exception-escape)
 int main(int, char**) {
   fmt::print("hello world, {}\n", Cple::BazelTest::some_string());
   return EXIT_SUCCESS;
