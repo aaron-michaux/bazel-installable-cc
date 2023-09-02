@@ -2,8 +2,10 @@
 
 set -e
 
-TOOLCHAINS_DIR="/opt/toolchains"
-THIS_DIR="$(cd $(dirname "$0") ; pwd)"
+THIS_SCRIPT="$([ -L "$0" ] && readlink -f "$0" || echo "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$THIS_SCRIPT")" ; pwd -P)"
+source "$SCRIPT_DIR/platform.sh"
+
 LLVMS="llvm-16.0.6 llvm-15.0.7 llvm-14.0.6 llvm-13.0.1"
 GCCS="gcc-13.2.0 gcc-12.3.0 gcc-11.4.0 gcc-10.5.0 gcc-9.5.0"
 
@@ -24,46 +26,30 @@ show_help()
 EOF
 }
 
-VENDOR=""
-if [ -x "/usr/bin/lsb_release" ] ; then    
-    PLATFORM="$(/usr/bin/lsb_release -a 2>/dev/null | grep Distributor | sed 's,^.*:,,' | awk '{ print $1 }' | tr '[:upper:]' '[:lower:]')"
-    VENDOR="$(/usr/bin/lsb_release -a 2>/dev/null | grep Codename | awk '{ print $2 }' | tr '[:upper:]' '[:lower:]')"
-elif [ "$(uname -s)" = "Darwin" ] ; then
-    PLATFORM="macos"
-    LIBTOOL=glibtool
-    LIBTOOLIZE=glibtoolize
-    echo "Not setup for Darwin, sorry!" 1>&2 && exit 1
-elif [ -f /etc/os-release ] && cat /etc/os-release | grep -qi Oracle  ; then
-    PLATFORM="oracle"
-    VENDOR="ol$(cat /etc/os-release | grep -E ^VERSION= | awk -F= '{ print $2 }' | sed 's,",,g')"
-else
-    echo "Failed to determine platform" 1>&2 && exit 1
-fi
-
 archive_it()
 {
     local TOOL="$1"
-    local TOOLROOT="${TOOL}--x86_64--${VENDOR}--linux"
+    local TOOLROOT="${TOOL}--${MACHINE}--${VENDOR_TAG}--${PLATFORM}"
     local ARCHIVE="${TOOLROOT}.tar.xz"
     cd "$TOOLCHAINS_DIR"
-    if [ ! -d "$TOOL" ] ; then
-        echo "archive $TOOL, skipping (directory missing)"
+    if [ ! -d "$TOOLROOT" ] ; then
+        echo "archive $TOOLROOT, skipping (directory missing)"
         return 0
     elif [ -f "$ARCHIVE.sha256" ] ; then
         if [ "$(sha256sum "$ARCHIVE")" = "$(cat $ARCHIVE.sha256)" ] ; then
-            echo "archive $TOOL, skipping (already done)"
+            echo "archive $TOOLROOT, skipping (already done)"
             return 0
         fi
     fi
-    echo "archive $TOOL"    
-    tar --transform "s/^$TOOL/${TOOLROOT}/" -c "$TOOL" | xz -c9e > "${ARCHIVE}"
+    echo "archive $TOOLROOT"
+    tar -c "$TOOLROOT" | xz -c9e > "$ARCHIVE"
     sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
 }
 
 build_it()
 {
     local TOOL="$1"
-    cd "$THIS_DIR"
+    cd "$SCRIPT_DIR"
     echo "build $TOOL"
     ./build-toolchain.sh $CLEANUP_ARG "$TOOL"    
 }
