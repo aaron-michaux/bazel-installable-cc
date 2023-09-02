@@ -161,7 +161,9 @@ def warning_error_flags(ctx):
 
 def default_stdlib_flags(ctx):
     install_root = ctx.attr.install_root
-    if "libcxx" in ctx.features or "stdcxx" in ctx.features:
+    has_libcxx = "libcxx" in ctx.features
+    has_stdcxx = "stdcxx" in ctx.features
+    if has_libcxx or has_stdcxx:
         return []
     return stdcxx_flags(ctx) # Defaults to 'libstdcxx'
 
@@ -191,9 +193,8 @@ def libcxx_flags(ctx):
       flagset suitable for a compiler 'feature'
     """
     if "libcxx" in ctx.features and ctx.attr.compiler != "clang":
-        fail("libcxx in only supported with the clang compiler")
+        fail("ERROR: libcxx in only supported with the clang compiler")
 
-    system_llvm_root = "/opt/local/llvm"
     install_root = ctx.attr.install_root
     architecture = ctx.attr.architecture
         
@@ -238,8 +239,6 @@ def asan_flags(ctx):
     Returns:
       flagset suitable for a compiler 'feature'
     """
-    if ctx.attr.compiler != "gcc" and ctx.attr.compiler != "clang":
-        fail("invalid compiler")
     is_gcc = (ctx.attr.compiler == "gcc")
 
     return [
@@ -275,8 +274,6 @@ def usan_flags(ctx):
       flagset suitable for a compiler 'feature'
     """
 
-    if ctx.attr.compiler != "gcc" and ctx.attr.compiler != "clang":
-        fail("invalid compiler")
     is_gcc = (ctx.attr.compiler == "gcc")
     is_clang = (ctx.attr.compiler == "clang")    
 
@@ -319,8 +316,6 @@ def tsan_flags(ctx):
     Returns:
       flagset suitable for a compiler 'feature'
     """
-    if ctx.attr.compiler != "gcc" and ctx.attr.compiler != "clang":
-        fail("invalid compiler")
     is_gcc = (ctx.attr.compiler == "gcc")
     is_clang = (ctx.attr.compiler == "clang")
 
@@ -399,7 +394,7 @@ def lto_flags(ctx):
         return _LTO_GCC_FLAGS
     if ctx.attr.compiler == "clang":
         return _LTO_CLANG_FLAGS
-    fail("invalid compiler")
+    fail("ERROR: invalid compiler")
 
 def pic_flags(ctx):
     return [
@@ -420,35 +415,25 @@ def pic_flags(ctx):
 def gold_linker_flags(ctx):
     return [
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = LINK_ACTIONS,
             flag_groups = ([flag_group(flags = ["-fuse-ld=gold"])]),
-            with_features = [with_feature_set(
-                not_features = ["lld_linker", "toolchain_linker"],
-            )],
         ),
     ]
 
 def lld_linker_flags(ctx):
     return [
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = LINK_ACTIONS,
             flag_groups = ([flag_group(flags = ["-fuse-ld=lld"])]),
-            with_features = [with_feature_set(
-                not_features = ["gold_linker", "toolchain_linker"],
-            )],
         ),
     ]
 
 def toolchain_linker_flags(ctx):
-    return [
-        flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
-            flag_groups = ([flag_group(flags = ["-fuse-ld=gold"])] if ctx.attr.compiler == "gcc" else [flag_group(flags = ["-fuse-ld=lld"])]),
-            with_features = [with_feature_set(
-                not_features = ["lld_linker", "gold_linker"],
-            )],
-        ),
-    ]
+    has_lld_linker = "lld_linker" in ctx.features
+    has_gold_linker = "gold_linker" in ctx.features
+    if has_lld_linker or has_gold_linker:
+        return []
+    return gold_linker_flags(ctx) if ctx.attr.compiler == "gcc" else lld_linker_flags(ctx)
 
 def shared_flags(ctx):
     return [
@@ -482,7 +467,7 @@ def no_canonical_system_headers_flags(ctx):
         ]
     if ctx.attr.compiler == "clang":
         return []  # Not a feature (not necessary) in clang
-    fail("invalid compiler")
+    fail("ERROR: invalid compiler")
 
 def runtime_library_search_flags(ctx):
     return [
@@ -604,8 +589,6 @@ def gcc_coverage_map_format_flags(ctx):
     ]
 
 def coverage_flags(ctx):
-    if ctx.attr.compiler != "gcc" and ctx.attr.compiler != "clang":
-        fail("invalid compiler")
     toolchain_flags = llvm_coverage_map_format_flags(ctx) if ctx.attr.compiler == "clang" else gcc_coverage_map_format_flags(ctx)
 
     return toolchain_flags + [
@@ -632,7 +615,7 @@ def coverage_flags(ctx):
 def strip_debug_symbols_flags(ctx):
     return [
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = ALL_LINK_ACTIONS,
             flag_groups = [
                 flag_group(
                     flags = ["-Wl,-S"],
@@ -642,13 +625,48 @@ def strip_debug_symbols_flags(ctx):
         ),
     ]
 
+def make_c_cxx_standards_features(ctx):
+    cxx_standards = [
+        "c++98", "gnu++98",
+        "c++03", "gnu++03",
+        "c++11", "gnu++11",
+        "c++14", "gnu++14",
+        "c++17", "gnu++17",
+        "c++2a", "gnu++2a",
+        "c++20", "gnu++20",
+        "c++2b", "gnu++2b",
+        "c++23", "gnu++23",
+        "c++2c", "gnu++2c",
+        "c++26", "gnu++26",
+    ]
+
+    return [feature(name = std.replace("++", "xx"),
+                    flag_sets = [make_flagset(ALL_CPP_COMPILE_ACTIONS, ["-std=" + std])])
+            for std in cxx_standards]    
+
 def make_base_features(ctx):
+    # Sanity checks
+    if ctx.attr.compiler != "gcc" and ctx.attr.compiler != "clang":
+        fail("ERROR: only supports 'gcc' and 'clang' compilers")
+    has_libcxx = "libcxx" in ctx.features
+    has_stdcxx = "stdcxx" in ctx.features
+    if has_libcxx and has_stdcxx:
+        fail("ERROR: Cannot specify both libcxx and stdcxx!")
+    has_lld_linker = "lld_linker" in ctx.features
+    has_gold_linker = "gold_linker" in ctx.features
+    if has_lld_linker and has_gold_linker:
+        fail("ERROR: Cannot specify both the 'lld' and 'gold' linkers at once!")
+    
     return [
         feature(name = "defaults", enabled = True, flag_sets = default_flagsets(ctx)),
+    ] + make_c_cxx_standards_features(ctx) + [
 
-        # C++ standards, cxx11, cxx14, cxx17, cxx20, cxx23
-        # feature(name = "std
-        
+        # Optimization levels
+        feature(name = "dbg"),
+        feature(name = "fastbuild"),
+        feature(name = "opt"),
+        feature(name = "benchmark", implies = ["fastbuild"]),
+
         # Preprocessor Options
         feature(
             name = "no_canonical_system_headers",
@@ -675,11 +693,6 @@ def make_base_features(ctx):
         feature(name = "ubsan", enabled = False, flag_sets = usan_flags(ctx)),
         feature(name = "tsan", enabled = False, flag_sets = tsan_flags(ctx), implies = ["pic"]),
 
-        # Optimization levels
-        feature(name = "dbg"),
-        feature(name = "fastbuild"),
-        feature(name = "opt"),
-        feature(name = "benchmark", implies = ["fastbuild"]),
 
         # Linkers
         feature(name = "gold_linker", enabled = False, flag_sets = gold_linker_flags(ctx)),
@@ -712,8 +725,6 @@ def calculate_toolchain_paths(ctx):
       A list of 'tool_path' for a 'gcc' or 'clang' compiler
     """
 
-    if ctx.attr.compiler != "gcc" and ctx.attr.compiler != "clang":
-        fail("invalid compiler")
     if ctx.attr.tool_paths:
         return ctx.attr.tool_paths
 
@@ -875,7 +886,7 @@ def compiler_default_directories(compiler, install_root, architecture, version):
         return base_directories + calculate_gcc_include_directories(install_root, architecture, version)
     elif compiler == "clang":
         return base_directories + calculate_clang_include_directories(install_root, architecture, version)
-    fail("invalid compiler")
+    fail("ERROR: invalid compiler")
 
 #
 # -- Convenience macros for specifying a 'gcc' or 'clang' toolchain and toolchain config
@@ -925,7 +936,7 @@ def make_toolchain_config(
     """
 
     if compiler != "gcc" and compiler != "clang":
-        fail("invalid compiler")
+        fail("ERROR: invalid compiler")
         
     if not toolchain_identifier:
         toolchain_identifier = "local_" + compiler + \
@@ -1025,7 +1036,7 @@ def make_toolchain_from_install_root(name, install_root, additional_args,
         is_clang = (parts[0] == "llvm")
         is_gcc = parts[0] == "gcc"
         if len(parts) < 2 or (not is_clang and not is_gcc):
-            fail("could not deduce clang/gcc from install_root: {}".format(install_root))
+            fail("ERROR: could not deduce clang/gcc from install_root: {}".format(install_root))
             return None
         version = parts[1]
         major_version = version.split(".")[0]

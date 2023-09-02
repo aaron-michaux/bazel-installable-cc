@@ -13,8 +13,7 @@ TOOLCHAIN_FLAGS = {
         # Include ["-Wall"]
     ],
     "base_compile_flags": [
-        # Extra flags passed th
-        "-std=c++20"
+        # Extra flags passed to all compile actions
     ],
     "c_flags": [
         # Flags passed to CXX compilation only

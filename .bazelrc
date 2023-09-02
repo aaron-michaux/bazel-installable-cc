@@ -40,7 +40,6 @@ build:libcxx --features=libcxx
 # -- Lto
 
 build:lto --features=lto
-build:no_lto --features=-lto
 
 # -- Configurations 
 

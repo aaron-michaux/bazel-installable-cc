@@ -27,7 +27,6 @@ Furthermore, as a matter of professional development, I wanted to do this projec
  * Check sanitizer run files work
  * Buildifier
  * clang-format checks through aspect
- * compdb
  * Ensure output-dir works -- no dumping of the analysis cache
  * Front end script (bazel aspects?? build.sh??? makefile????)
    - Front end should run under valgrind/helgrind with suppressions
