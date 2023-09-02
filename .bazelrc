@@ -49,15 +49,15 @@ build:debug --compilation_mode=dbg
 build:release --compilation_mode=opt
 
 build:asan --features=asan
-build:asan --test_env="ASAN_OPTIONS=suppression=example/config/suppressions/asan.supp:color=always"
-build:asan --test_env="LSAN_OPTIONS=suppression=example/config/suppressions/lsan.supp:verbosity=1:log_threads=1:color=always"
+build:asan --test_env="ASAN_OPTIONS=suppressions=example/config/suppressions/asan.supp:color=always:detect_leaks=1"
+build:asan --test_env="LSAN_OPTIONS=suppressions=example/config/suppressions/lsan.supp:verbosity=1:log_threads=1:color=always"
 
 build:ubsan --config=usan
 build:usan --features=usan
-build:usan --test_env="UBSAN_OPTIONS=suppression=example/config/suppressions/usan.supp:print_stacktrace=1:color=always"
+build:usan --test_env="UBSAN_OPTIONS=suppressions=example/config/suppressions/usan.supp:print_stacktrace=1:color=always"
 
 build:tsan --features=tsan
-build:tsan --test_env="TSAN_OPTIONS=suppression=example/config/suppressions/tsan.supp:print_stacktrace=1:color=always:second_deadlock_stack=1"
+build:tsan --test_env="TSAN_OPTIONS=suppressions=example/config/suppressions/tsan.supp:print_stacktrace=1:color=always:second_deadlock_stack=1"
 
 # -- Compilation Database
 

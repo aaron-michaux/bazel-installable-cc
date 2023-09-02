@@ -12,5 +12,6 @@
 // NOLINTNEXTLINE(bugprone-exception-escape)
 int main(int, char**) {
   fmt::print("hello world, {}\n", Cple::BazelTest::some_string());
+  malloc(1);
   return EXIT_SUCCESS;
 }
