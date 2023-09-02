@@ -626,6 +626,16 @@ def strip_debug_symbols_flags(ctx):
     ]
 
 def make_c_cxx_standards_features(ctx):
+    c_standards = [
+        "c89", "gnu89",       
+        "c90", "gnu90",
+        "c99", "gnu99",
+        "c11", "gnu11",
+        "c17", "gnu17",
+        "c18", "gnu18",
+        "c2x", "gnu2x",
+    ]
+    
     cxx_standards = [
         "c++98", "gnu++98",
         "c++03", "gnu++03",
@@ -638,11 +648,15 @@ def make_c_cxx_standards_features(ctx):
         "c++23", "gnu++23",
         "c++2c", "gnu++2c",
         "c++26", "gnu++26",
-    ]
+    ]    
 
-    return [feature(name = std,
-                    flag_sets = [make_flagset(ALL_CPP_COMPILE_ACTIONS, ["-std=" + std])])
-            for std in cxx_standards]    
+    c_standards = [feature(name = std,
+                           flag_sets = [make_flagset(ALL_C_COMPILE_ACTIONS, ["-std=" + std])])
+                   for std in c_standards]
+    cxx_standards = [feature(name = std,
+                             flag_sets = [make_flagset(ALL_CPP_COMPILE_ACTIONS, ["-std=" + std])])
+                     for std in cxx_standards]    
+    return c_standards + cxx_standards
 
 def make_base_features(ctx):
     # Sanity checks
