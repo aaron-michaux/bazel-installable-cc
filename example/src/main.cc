@@ -13,4 +13,5 @@
 int main(int, char**) {
   fmt::print("hello world, {}\n", Cple::BazelTest::some_string());
   return EXIT_SUCCESS;
+
 }

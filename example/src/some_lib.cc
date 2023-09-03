@@ -1,7 +1,6 @@
 /**
  * Copyright (c) 2023 Broadcom.  All rights reserved.
  */
-
 #include "some_lib.h"
 
 namespace Cple::BazelTest {

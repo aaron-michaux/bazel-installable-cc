@@ -33,6 +33,13 @@ binary_alias(
     src = TOOLCHAIN_DIRECTORY + "/bin/clang-tidy",
 )
 
+# -- Clang Format
+
+binary_alias(
+    name = "clang_format_bin",
+    src = TOOLCHAIN_DIRECTORY + "/bin/clang-format",
+)
+
 # -- Files the compiler has access to
 
 filegroup(

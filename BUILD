@@ -1,5 +1,6 @@
 load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
+load("//internal:defs.bzl", "clang_format")
 
 exports_files([
     ".clang-format",
@@ -36,3 +37,18 @@ buildifier(
     lint_mode = "fix",
     verbose = True,
 )
+
+clang_format(
+    name = "format_check",
+    clang_format = "@initialize_toolchain//:clang_format_bin",
+    targets = ["//example/src:main"],
+    mode = "check",
+)
+
+clang_format(
+    name = "format_fix",
+    clang_format = "@initialize_toolchain//:clang_format_bin",
+    targets = ["//example/src:main"],
+    mode = "fix",
+)
+
