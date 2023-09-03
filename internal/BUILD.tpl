@@ -23,7 +23,7 @@ make_toolchain_from_install_root(
     additional_args = TOOLCHAIN_FLAGS,
     sys_machine = SYS_MACHINE,
     host_cxx_builtin_dirs = HOST_CXX_BUILTIN_DIRS,
-    is_default = USE_HOST_COMPILER,
+    is_host_compiler = USE_HOST_COMPILER,
 )
 
 # -- Clang Tidy

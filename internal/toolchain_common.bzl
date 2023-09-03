@@ -4,12 +4,9 @@ Configuration for 'gcc' and 'clang' compilers on Ubuntu
 
 load(
     "@bazel_tools//tools/cpp:cc_toolchain_config_lib.bzl",
-    "action_config",
     "feature",
-    "feature_set",
     "flag_group",
     "flag_set",
-    "tool",
     "tool_path",
     "with_feature_set",
 )
@@ -22,7 +19,7 @@ ALL_ACTIONS = [
     ACTION_NAMES.assemble,
 
     # Compiler
-    ACTION_NAMES.cc_flags_make_variable, # Propagates CC_FLAGS to genrules
+    ACTION_NAMES.cc_flags_make_variable,  # Propagates CC_FLAGS to genrules
     ACTION_NAMES.c_compile,
     ACTION_NAMES.cpp_compile,
     ACTION_NAMES.cpp_header_parsing,
@@ -46,7 +43,7 @@ ALL_ACTIONS = [
 ALL_COMPILE_ACTIONS = [
     ACTION_NAMES.preprocess_assemble,
     ACTION_NAMES.assemble,
-    ACTION_NAMES.cc_flags_make_variable, # Propagates CC_FLAGS to genrules
+    ACTION_NAMES.cc_flags_make_variable,  # Propagates CC_FLAGS to genrules
     ACTION_NAMES.c_compile,
     ACTION_NAMES.cpp_compile,
     ACTION_NAMES.cpp_header_parsing,
@@ -62,7 +59,7 @@ ALL_C_COMPILE_ACTIONS = [
 ]
 
 ALL_CPP_COMPILE_ACTIONS = [
-    ACTION_NAMES.cc_flags_make_variable, # Propagates CC_FLAGS to genrules
+    ACTION_NAMES.cc_flags_make_variable,  # Propagates CC_FLAGS to genrules
     ACTION_NAMES.cpp_compile,
     ACTION_NAMES.cpp_header_parsing,
 ]
@@ -85,12 +82,31 @@ LTO_INDEX_ACTIONS = [
 ALL_LINK_ACTIONS = LINK_ACTIONS + LTO_INDEX_ACTIONS
 
 def combine_flags(set1, set2):
+    """Combine two lists of flags, remove duplicates from 2nd.
+
+    Args:
+      set1: 1st list of strings.
+      set2: 2nd list of strings.
+
+    Returns:
+      The combined set.
+    """
     if not set2:
         return set1
     flags = set1 + [x for x in set2 if x not in set1]
     return flags
 
 def make_flagset(actions, flags, features = None):
+    """Flagset factory for given actions and flags|features.
+
+    Args:
+      actions: The actions the flagset applies to.
+      flags: The list of flags; can be empty.
+      features: If set, the "with_feature_set" features.
+
+    Returns:
+      A `flag_set`, or None if no `flags` given.
+    """
     if len(flags) == 0:
         return None
     if features:
@@ -101,20 +117,23 @@ def make_flagset(actions, flags, features = None):
         )
     return flag_set(actions = actions, flag_groups = ([flag_group(flags = flags)]))
 
-
+# buildifier: disable=function-docstring
 def default_flagsets(ctx):
     # Compile flags
     base_comp_flags = combine_flags([], ctx.attr.base_compile_flags)
     c_flags = combine_flags([], ctx.attr.c_flags)
     cxx_flags = combine_flags([], ctx.attr.cxx_flags)
     dbg_comp_flags = combine_flags(["-O0", "-g"], ctx.attr.dbg_compile_flags)
-    opt_comp_flags = combine_flags(["-O3", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
-                                   ctx.attr.opt_compile_flags)
+    opt_comp_flags = combine_flags(
+        ["-O3", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
+        ctx.attr.opt_compile_flags,
+    )
     coverage_comp_flags = combine_flags([], ctx.attr.coverage_compile_flags)
-    benchmark_comp_flags = combine_flags(["-O3", "-g", "-fno-omit-frame-pointer"],
-                                         ctx.attr.benchmark_compile_flags)
+    benchmark_comp_flags = combine_flags(
+        ["-O3", "-g", "-fno-omit-frame-pointer"],
+        ctx.attr.benchmark_compile_flags,
+    )
 
-    
     # Link flags
     base_link_flags = combine_flags([], ctx.attr.base_link_flags)
     dbg_link_flags = combine_flags(["-g", "-Wl,-no-as-needed"], ctx.attr.dbg_link_flags)
@@ -128,7 +147,7 @@ def default_flagsets(ctx):
         make_flagset(ALL_COMPILE_ACTIONS, base_comp_flags),
         make_flagset(ALL_C_COMPILE_ACTIONS, c_flags),
         make_flagset(ALL_CPP_COMPILE_ACTIONS, cxx_flags),
-        make_flagset(ALL_COMPILE_ACTIONS, dbg_comp_flags, ["dbg"]),        
+        make_flagset(ALL_COMPILE_ACTIONS, dbg_comp_flags, ["dbg"]),
         make_flagset(ALL_COMPILE_ACTIONS, opt_comp_flags, ["opt"]),
         make_flagset(ALL_COMPILE_ACTIONS, benchmark_comp_flags, ["benchmark"]),
         make_flagset(ALL_COMPILE_ACTIONS, coverage_comp_flags, ["coverage"]),
@@ -140,8 +159,9 @@ def default_flagsets(ctx):
         make_flagset(ALL_LINK_ACTIONS, benchmark_link_flags, ["benchmark"]),
     ]
 
-    return [x for x in flagsets if x] # Filter out 'None' flagsets
+    return [x for x in flagsets if x]  # Filter out 'None' flagsets
 
+# buildifier: disable=function-docstring
 def warning_flags(ctx):
     flags = combine_flags(["-Wall"], ctx.attr.warning_flags)
     return [
@@ -151,6 +171,7 @@ def warning_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def warning_error_flags(ctx):
     return [
         flag_set(
@@ -159,21 +180,23 @@ def warning_error_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def default_stdlib_flags(ctx):
     install_root = ctx.attr.install_root
     has_libcxx = "libcxx" in ctx.features
     has_stdcxx = "stdcxx" in ctx.features
     if has_libcxx or has_stdcxx:
         return []
-    return stdcxx_flags(ctx) # Defaults to 'libstdcxx'
+    return stdcxx_flags(ctx)  # Defaults to 'libstdcxx'
 
+# buildifier: disable=function-docstring
 def stdcxx_flags(ctx):
-    install_root = ctx.attr.install_root    
+    install_root = ctx.attr.install_root
     link_flags = ["-lstdc++", "-lm"]
     if ctx.attr.install_root and ctx.attr.install_root != "/usr":
-        link_flags += [
+        link_flags.append(
             "-Wl,-rpath," + install_root + "/lib64",
-        ]    
+        )
     return [
         flag_set(
             actions = ALL_LINK_ACTIONS,
@@ -190,14 +213,14 @@ def libcxx_flags(ctx):
       ctx: The compiler context
 
     Returns:
-      flagset suitable for a compiler 'feature'
+      flagset
     """
     if "libcxx" in ctx.features and ctx.attr.compiler != "clang":
         fail("ERROR: libcxx in only supported with the clang compiler")
 
     install_root = ctx.attr.install_root
     architecture = ctx.attr.architecture
-        
+
     return [
         flag_set(
             actions = ALL_CPP_COMPILE_ACTIONS,
@@ -275,7 +298,7 @@ def usan_flags(ctx):
     """
 
     is_gcc = (ctx.attr.compiler == "gcc")
-    is_clang = (ctx.attr.compiler == "clang")    
+    is_clang = (ctx.attr.compiler == "clang")
 
     # Have to convince bazel not to set gcc rt library
     # @see https://bugs.llvm.org/show_bug.cgi?id=16404
@@ -396,6 +419,7 @@ def lto_flags(ctx):
         return _LTO_CLANG_FLAGS
     fail("ERROR: invalid compiler")
 
+# buildifier: disable=function-docstring
 def pic_flags(ctx):
     return [
         flag_set(
@@ -412,6 +436,7 @@ def pic_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def gold_linker_flags(ctx):
     return [
         flag_set(
@@ -420,6 +445,7 @@ def gold_linker_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def lld_linker_flags(ctx):
     return [
         flag_set(
@@ -428,6 +454,7 @@ def lld_linker_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def toolchain_linker_flags(ctx):
     has_lld_linker = "lld_linker" in ctx.features
     has_gold_linker = "gold_linker" in ctx.features
@@ -435,6 +462,7 @@ def toolchain_linker_flags(ctx):
         return []
     return gold_linker_flags(ctx) if ctx.attr.compiler == "gcc" else lld_linker_flags(ctx)
 
+# buildifier: disable=function-docstring
 def shared_flags(ctx):
     return [
         flag_set(
@@ -469,6 +497,7 @@ def no_canonical_system_headers_flags(ctx):
         return []  # Not a feature (not necessary) in clang
     fail("ERROR: invalid compiler")
 
+# buildifier: disable=function-docstring
 def runtime_library_search_flags(ctx):
     return [
         flag_set(
@@ -522,6 +551,7 @@ def runtime_library_search_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def llvm_coverage_map_format_flags(ctx):
     return [
         flag_set(
@@ -555,6 +585,7 @@ def llvm_coverage_map_format_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def gcc_coverage_map_format_flags(ctx):
     return [
         flag_set(
@@ -588,6 +619,7 @@ def gcc_coverage_map_format_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def coverage_flags(ctx):
     toolchain_flags = llvm_coverage_map_format_flags(ctx) if ctx.attr.compiler == "clang" else gcc_coverage_map_format_flags(ctx)
 
@@ -612,6 +644,7 @@ def coverage_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def strip_debug_symbols_flags(ctx):
     return [
         flag_set(
@@ -625,40 +658,76 @@ def strip_debug_symbols_flags(ctx):
         ),
     ]
 
+# buildifier: disable=function-docstring
 def make_c_cxx_standards_features(ctx):
     c_standards = [
-        "c89", "gnu89",       
-        "c90", "gnu90",
-        "c99", "gnu99",
-        "c11", "gnu11",
-        "c17", "gnu17",
-        "c18", "gnu18",
-        "c2x", "gnu2x",
+        "c89",
+        "gnu89",
+        "c90",
+        "gnu90",
+        "c99",
+        "gnu99",
+        "c11",
+        "gnu11",
+        "c17",
+        "gnu17",
+        "c18",
+        "gnu18",
+        "c2x",
+        "gnu2x",
     ]
-    
-    cxx_standards = [
-        "c++98", "gnu++98",
-        "c++03", "gnu++03",
-        "c++11", "gnu++11",
-        "c++14", "gnu++14",
-        "c++17", "gnu++17",
-        "c++2a", "gnu++2a",
-        "c++20", "gnu++20",
-        "c++2b", "gnu++2b",
-        "c++23", "gnu++23",
-        "c++2c", "gnu++2c",
-        "c++26", "gnu++26",
-    ]    
 
-    c_standards = [feature(name = std,
-                           flag_sets = [make_flagset(ALL_C_COMPILE_ACTIONS, ["-std=" + std])])
-                   for std in c_standards]
-    cxx_standards = [feature(name = std,
-                             flag_sets = [make_flagset(ALL_CPP_COMPILE_ACTIONS, ["-std=" + std])])
-                     for std in cxx_standards]    
+    cxx_standards = [
+        "c++98",
+        "gnu++98",
+        "c++03",
+        "gnu++03",
+        "c++11",
+        "gnu++11",
+        "c++14",
+        "gnu++14",
+        "c++17",
+        "gnu++17",
+        "c++2a",
+        "gnu++2a",
+        "c++20",
+        "gnu++20",
+        "c++2b",
+        "gnu++2b",
+        "c++23",
+        "gnu++23",
+        "c++2c",
+        "gnu++2c",
+        "c++26",
+        "gnu++26",
+    ]
+
+    c_standards = [
+        feature(
+            name = std,
+            flag_sets = [make_flagset(ALL_C_COMPILE_ACTIONS, ["-std=" + std])],
+        )
+        for std in c_standards
+    ]
+    cxx_standards = [
+        feature(
+            name = std,
+            flag_sets = [make_flagset(ALL_CPP_COMPILE_ACTIONS, ["-std=" + std])],
+        )
+        for std in cxx_standards
+    ]
     return c_standards + cxx_standards
 
 def make_base_features(ctx):
+    """Makes the features for the compiler.
+
+    Args:
+      ctx: The compiler rule context.
+
+    Returns:
+      The compiler features.
+    """
+
     # Sanity checks
     if ctx.attr.compiler != "gcc" and ctx.attr.compiler != "clang":
         fail("ERROR: only supports 'gcc' and 'clang' compilers")
@@ -670,7 +739,7 @@ def make_base_features(ctx):
     has_gold_linker = "gold_linker" in ctx.features
     if has_lld_linker and has_gold_linker:
         fail("ERROR: Cannot specify both the 'lld' and 'gold' linkers at once!")
-    
+
     return [
         feature(name = "defaults", enabled = True, flag_sets = default_flagsets(ctx)),
     ] + make_c_cxx_standards_features(ctx) + [
@@ -685,18 +754,18 @@ def make_base_features(ctx):
         feature(
             name = "no_canonical_system_headers",
             enabled = True,
-            flag_sets = no_canonical_system_headers_flags(ctx)
-        ),        
-        
+            flag_sets = no_canonical_system_headers_flags(ctx),
+        ),
+
         # Standard Library
         feature(name = "default_stdlib", enabled = True, flag_sets = default_stdlib_flags(ctx)),
         feature(name = "stdcxx", enabled = False, flag_sets = stdcxx_flags(ctx)),
         feature(name = "libcxx", enabled = False, flag_sets = libcxx_flags(ctx)),
-        
+
         # Pic
         feature(name = "pic", enabled = False, flag_sets = pic_flags(ctx)),
         feature(name = "supports_pic", enabled = True),
-        
+
         # Warnings
         feature(name = "warnings", enabled = True, flag_sets = warning_flags(ctx)),
         feature(name = "warn_error", enabled = False, flag_sets = warning_error_flags(ctx)),
@@ -707,7 +776,6 @@ def make_base_features(ctx):
         feature(name = "ubsan", enabled = False, flag_sets = usan_flags(ctx)),
         feature(name = "tsan", enabled = False, flag_sets = tsan_flags(ctx), implies = ["pic"]),
 
-
         # Linkers
         feature(name = "gold_linker", enabled = False, flag_sets = gold_linker_flags(ctx)),
         feature(name = "lld_linker", enabled = False, flag_sets = lld_linker_flags(ctx)),
@@ -715,9 +783,10 @@ def make_base_features(ctx):
 
         # Extra linker flags
         feature(name = "shared_flag", flag_sets = shared_flags(ctx)),
-        feature(name = "lto", enabled = False, flag_sets = lto_flags(ctx), implies = ["toolchain_linker"]),        
-        feature(name = "supports_start_end_lib", enabled = True),        
-        feature( # Add rpaths to binary
+        feature(name = "lto", enabled = False, flag_sets = lto_flags(ctx), implies = ["toolchain_linker"]),
+        feature(name = "supports_start_end_lib", enabled = True),
+        feature(
+            # Add rpaths to binary
             name = "runtime_library_search_directories_feature",
             enabled = True,
             flag_sets = runtime_library_search_flags(ctx),
@@ -725,7 +794,7 @@ def make_base_features(ctx):
 
         # Misc. Features
         feature(name = "coverage", flag_sets = coverage_flags(ctx), provides = ["profile"]),
-        feature(name = "strip_debug_symbols", flag_sets = strip_debug_symbols_flags(ctx))
+        feature(name = "strip_debug_symbols", flag_sets = strip_debug_symbols_flags(ctx)),
     ]
 
 def calculate_toolchain_paths(ctx):
@@ -746,7 +815,7 @@ def calculate_toolchain_paths(ctx):
     bindir = "bin"
     prefix = ctx.attr.prefix if ctx.attr.prefix else ""
     suffix = ctx.attr.suffix if ctx.attr.suffix else ""
-    
+
     base_path = install_root + "/" + bindir + "/" + prefix
     if ctx.attr.compiler == "gcc":
         # gcc
@@ -784,9 +853,9 @@ COMMON_ATTRIBUTES = {
     "compiler": attr.string(mandatory = True),
     "version": attr.string(mandatory = False),  # The compiler version for directory includes
     "install_root": attr.string(mandatory = True),  # install root of compiler
-    "prefix": attr.string(), # prefix prepended before tool name
-    "suffix": attr.string(), # suffix appended to tools, like "-9" for "gcc-9"
-    "architecture": attr.string(mandatory = True), # 'x86_64-linux-gnu' etc
+    "prefix": attr.string(),  # prefix prepended before tool name
+    "suffix": attr.string(),  # suffix appended to tools, like "-9" for "gcc-9"
+    "architecture": attr.string(mandatory = True),  # 'x86_64-linux-gnu' etc
     "toolchain_identifier": attr.string(mandatory = True),
     "host_system_name": attr.string(mandatory = True),
     "target_system_name": attr.string(mandatory = True),
@@ -818,13 +887,14 @@ COMMON_ATTRIBUTES = {
     "opt_link_flags": attr.string_list(),
     "coverage_link_flags": attr.string_list(),
     "benchmark_link_flags": attr.string_list(),
-    "link_libs": attr.string_list(),    
+    "link_libs": attr.string_list(),
 }
 
+# buildifier: disable=function-docstring
 def _impl(ctx):
     tool_paths = calculate_toolchain_paths(ctx)
     extra_inc_dirs = ctx.attr.extra_include_directories if ctx.attr.extra_include_directories else []
-    build_inc_dirs = ctx.attr.cxx_builtin_include_directories + extra_inc_dirs    
+    build_inc_dirs = ctx.attr.cxx_builtin_include_directories + extra_inc_dirs
     return [
         cc_common.create_cc_toolchain_config_info(
             ctx = ctx,
@@ -839,7 +909,8 @@ def _impl(ctx):
             tool_paths = tool_paths,
             features = make_base_features(ctx),
             cxx_builtin_include_directories = build_inc_dirs,
-        )]
+        ),
+    ]
 
 unix_toolchain_config = rule(
     implementation = _impl,
@@ -854,6 +925,7 @@ unix_toolchain_config = rule(
 def calculate_gcc_include_directories(gcc_installation_path, architecture, version):
     # architecture: x86_64-linux-gnu, x86_64-pc-linux-gnu, x86_64-buildroot-linux-gnu
     major_version = version.split(".")[0]
+
     def with_version(version):
         return [
             "lib/gcc/" + architecture + "/" + version + "/include",  #      Ubuntu package
@@ -863,21 +935,23 @@ def calculate_gcc_include_directories(gcc_installation_path, architecture, versi
             "include/c++/" + version + "/c/backward",
         ]
 
-    paths = with_version(version) + with_version(major_version)        
+    paths = with_version(version) + with_version(major_version)
     return [gcc_installation_path + "/" + x for x in paths]
 
 def calculate_clang_include_directories(clang_installation_path, architecture, version):
     major_version = version.split(".")[0]
+
     def with_version(version):
         return [
             "lib/clang/" + version + "/include",
             "lib/clang/" + version + "/share",  # asan blacklist etc.
         ]
+
     paths = [
         "include/c++/v1",
-        "include/" + architecture + "/c++/v1"
+        "include/" + architecture + "/c++/v1",
     ] + with_version(version) + with_version(major_version)
-    
+
     return [clang_installation_path + "/" + x for x in paths]
 
 def compiler_default_directories(compiler, install_root, architecture, version):
@@ -885,12 +959,13 @@ def compiler_default_directories(compiler, install_root, architecture, version):
     Calculate the default (builtin) c++ system header directories
 
     Args:
-      compiler: should be 'gcc' or 'clang'
-      prefix: the install root prefix for the toolchain; tool is at, eg, {prefix}/bin/gcc-9
-      version: the tool version string used to locate c++ headers
+      compiler: Should be 'gcc' or 'clang'.
+      install_root: The install root prefix for the toolchain; tool is at, eg, {prefix}/bin/gcc-9.
+      architecture: The "machine", used to locate include directories.
+      version: The tool version string used to locate c++ headers.
 
     Returns:
-      flagset suitable for a compiler 'feature'
+      flagset suitable for a compiler 'feature'.
     """
     base_directories = [
         "/usr/include/" + architecture,
@@ -905,7 +980,7 @@ def compiler_default_directories(compiler, install_root, architecture, version):
 #
 # -- Convenience macros for specifying a 'gcc' or 'clang' toolchain and toolchain config
 #
-       
+
 def make_toolchain_config(
         name,
         compiler,
@@ -934,8 +1009,10 @@ def make_toolchain_config(
       compiler: Must be 'gcc' or 'clang'
       cpu: Defaults to 'k8'
       version: For finding installation includes/libraries
-      prefix: Prefix to find installation root
+      install_root: Prefix to find installation root
+      prefix: <install_root>/bin/<prefix>gcc<suffix>
       suffix: Suffix added to certain toolchain programs
+      architecture: Something like 'x86_64-linux-gnu'
       supports_start_end_lib: Boolean that tells bazel to skip building static libraries if possible
       cxx_builtin_include_directories: C++ system include directories; Pass 'None' for defaults
       extra_include_directories: C++ include directories to add builtin include directories
@@ -951,11 +1028,11 @@ def make_toolchain_config(
 
     if compiler != "gcc" and compiler != "clang":
         fail("ERROR: invalid compiler")
-        
+
     if not toolchain_identifier:
         toolchain_identifier = "local_" + compiler + \
                                ("_" + version if version else "")
-        
+
     # Calculate the include directories
     if not cxx_builtin_include_directories:
         cxx_builtin_include_directories = compiler_default_directories(compiler, install_root, architecture, version)
@@ -963,9 +1040,9 @@ def make_toolchain_config(
     # In the call below to `unix_toolchain_config`, we unpack **kargs.
     # This will throw an error if `kargs` wants to override any of the other
     # arguments. So we collate all arguments together directly in kargs.
-    
+
     final_kargs = kargs
-    
+
     def update_dict(d, key = None, value = None):
         # Disable check, which erroneously fires because for loops
         # below can be empty
@@ -995,7 +1072,7 @@ def make_toolchain_config(
     update_dict(final_kargs, "extra_include_directories", extra_include_directories)
 
     unix_toolchain_config(**final_kargs)
-    
+
 def make_toolchain(name, toolchain_config):
     cc_toolchain(
         name = name + "_cc_toolchain",
@@ -1008,33 +1085,43 @@ def make_toolchain(name, toolchain_config):
         supports_param_files = 0,
         toolchain_config = toolchain_config,
     )
-    
+
     native.toolchain(
         name = name,
         exec_compatible_with = [
             "@platforms//os:linux",
-            "@platforms//cpu:x86_64",            
+            "@platforms//cpu:x86_64",
         ],
         target_compatible_with = [
             "@platforms//os:linux",
-            "@platforms//cpu:x86_64",            
+            "@platforms//cpu:x86_64",
         ],
         toolchain = ":" + name + "_cc_toolchain",
         toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
     )
-    
 
-def make_toolchain_from_install_root(name, install_root, additional_args,
-                                     sys_machine, host_cxx_builtin_dirs,
-                                     is_default):
-    """
-    Logic to deduce toolchain parameters from install_root only
+def make_toolchain_from_install_root(
+        name,
+        install_root,
+        additional_args,
+        sys_machine,
+        host_cxx_builtin_dirs,
+        is_host_compiler):
+    """Logic to deduce toolchain parameters from install_root only.
+
+    Args:
+      name: The name for the rule
+      install_root: Toolchain directory
+      additional_args: A list of list of strings that gets spliced into the toolchain configuration.
+      sys_machine: The output of `gcc -machinedump`
+      host_cxx_builtin_dirs: Sandbox breaking include directories necessary for host compiler (only).
+      is_host_compiler: True if setting up the host compiler.
     """
     label = name
     config_label = label + "_config"
     version = None
-    
-    if is_default:
+
+    if is_host_compiler:
         make_toolchain_config(
             name = config_label,
             compiler = "gcc",
@@ -1043,7 +1130,7 @@ def make_toolchain_from_install_root(name, install_root, additional_args,
             additional_args = additional_args,
             cxx_builtin_include_directories = host_cxx_builtin_dirs,
         )
-    else:               
+    else:
         basename = install_root.split("/")[-1]
         is_gcc = basename.startswith("gcc")
         parts = basename.split("-")
@@ -1051,12 +1138,11 @@ def make_toolchain_from_install_root(name, install_root, additional_args,
         is_gcc = parts[0] == "gcc"
         if len(parts) < 2 or (not is_clang and not is_gcc):
             fail("ERROR: could not deduce clang/gcc from install_root: {}".format(install_root))
-            return None
         version = parts[1]
         major_version = version.split(".")[0]
         architecture = "x86_64-pc-linux-gnu" if is_gcc else "x86_64-unknown-linux-gnu"
         suffix = ("-" + major_version) if is_gcc else ""
-        config_label = label + "_config"    
+        config_label = label + "_config"
         make_toolchain_config(
             name = config_label,
             compiler = "gcc" if is_gcc else "clang",
@@ -1066,16 +1152,16 @@ def make_toolchain_from_install_root(name, install_root, additional_args,
             suffix = suffix,
             additional_args = additional_args,
         )
-    
+
     make_toolchain(
         name = label,
-        toolchain_config = ":" + config_label,        
+        toolchain_config = ":" + config_label,
     )
-        
+
 # -- binary alias
 
 def binary_alias_impl_(ctx):
-    out = ctx.actions.declare_file(ctx.label.name)    
+    out = ctx.actions.declare_file(ctx.label.name)
     ctx.actions.write(
         output = out,
         content = "#!/bin/bash\n{} \"$@\"\n".format(ctx.attr.src),
@@ -1085,9 +1171,8 @@ def binary_alias_impl_(ctx):
 
 binary_alias = rule(
     implementation = binary_alias_impl_,
-    executable = True, # You can do 'bazel run' on this rule
+    executable = True,  # You can do 'bazel run' on this rule
     attrs = {
-        "src": attr.string()
+        "src": attr.string(),
     },
 )
-

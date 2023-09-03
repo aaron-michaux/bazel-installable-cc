@@ -6,10 +6,10 @@ as a parameter.
 
 # A dictionary of key-value pairs that are passed to the toolchain configuration
 # TODO change TOOLCHAIN_FLAGS to generate_toolchain_flags(toolchain)
-TOOLCHAIN_FLAGS = {    
+TOOLCHAIN_FLAGS = {
     # For the feature: --features=warnings
     "warning_flags": [
-        "-Wextra", #
+        "-Wextra",  #
         # Include ["-Wall"]
     ],
     "base_compile_flags": [
@@ -31,9 +31,9 @@ TOOLCHAIN_FLAGS = {
     ],
     "coverage_compile_flags": [
         # Link flags passed when --features coverage
-        "-DNDEBUG"
+        "-DNDEBUG",
     ],
-    "benchmark_compile_flags": [        
+    "benchmark_compile_flags": [
         # Includes: ["-O3", "-g", "-fno-omit-frame-pointer"]
     ],
     "base_link_flags": [
@@ -52,7 +52,6 @@ TOOLCHAIN_FLAGS = {
         # Link flags passed when --features coverage
     ],
     "benchmark_link_flags": [
-        "-Wl,-z,now", # dynamic linker eagerly binds symbols
+        "-Wl,-z,now",  # dynamic linker eagerly binds symbols
     ],
 }
-

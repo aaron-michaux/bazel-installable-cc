@@ -22,16 +22,23 @@ Furthermore, as a matter of professional development, I wanted to do this projec
 
  * Linux only: Tested on Debian10, Ubuntu22.04, Oracle Linux 8.8
 
+## Notes:
+
+ * bazel build --config static_analysis //example/src:all
+ * bazel run //:buildifier_check
+ * bazel run //:buildifier_fix
+ * bazel build :refresh_compile_commands
+
 ## TODOs
 
- * Check sanitizer run files work
+ * A trivial testcase, with sanitizer run files work
  * Buildifier
  * clang-format checks through aspect
- * Ensure output-dir works -- no dumping of the analysis cache
  * Front end script (bazel aspects?? build.sh??? makefile????)
    - Front end should run under valgrind/helgrind with suppressions
    - Front end should auto-support gdb for any target
- * Cross-compiler
+   - Ensure output-dir works -- no dumping of the analysis cache
+ * Cross-compiler (is sysroot enough?)
  * Works on macos (with brew)
 
 

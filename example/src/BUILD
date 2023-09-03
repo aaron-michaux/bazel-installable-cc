@@ -3,11 +3,11 @@ load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 cc_binary(
     name = "main",
     srcs = ["main.cc"],
+    data = ["//example/config/suppressions:all"],
     deps = [
         ":some_lib_lib",
         "@fmtlib//:fmt",
     ],
-    data = ["//example/config/suppressions:all"]
 )
 
 cc_library(
