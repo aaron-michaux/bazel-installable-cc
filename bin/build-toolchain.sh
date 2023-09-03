@@ -176,35 +176,32 @@ build_llvm()
     git checkout "llvmorg-${VERSION}"
 
     local EXTRA_LLVM_DEFINES=""
+    local LLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld"
+    local LLVM_ENABLE_RUNTIMES_ARG="-D LLVM_ENABLE_RUNTIMES=compiler-rt;libc;libcxx;libcxxabi;libunwind"
     local MAJOR_VERSION="$(echo "$VERSION" | awk -F. '{ print $1 }')"
     if (( $MAJOR_VERSION <= 12 )) ; then
-        EXTRA_LLVM_DEFINES="-D LLVM_USE_LINKER=lld"
-        # EXTRA_LLVM_DEFINES="-D COMPILER_RT_BUILD_GWP_ASAN=Off -D COMPILER_RT_BUILD_LIBFUZZER=Off -D COMPILER_RT_BUILD_ORC=Off -D COMPILER_RT_BUILD_SANITIZERS=OFF"
-        #     #-DBacktrace_INCLUDE_DIR=$INSTALL_PREFIX/include -DBacktrace_LIBRARY=$INSTALL_PREFIX/lib/libexecinfo.so
+        LLVM_ENABLE_PROJECTS="$LLVM_ENABLE_PROJECTS;compiler-rt;libcxx;libcxxabi;libunwind"
+        LLVM_ENABLE_RUNTIMES_ARG=""
     fi
     
     cd "$BUILD_D"
-    
     nice $CMAKE -G "Unix Makefiles" \
-         -D LLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld" \
-         -D LLVM_ENABLE_RUNTIMES="compiler-rt;libc;libcxx;libcxxabi;libunwind" \
+         -D LLVM_ENABLE_PROJECTS="$LLVM_ENABLE_PROJECTS" \
+         $LLVM_ENABLE_RUNTIMES_ARG \
          -D CMAKE_BUILD_TYPE=Release \
          -D CMAKE_C_COMPILER=$HOST_CC \
          -D CMAKE_CXX_COMPILER=$HOST_CXX \
          -D LLVM_ENABLE_ASSERTIONS=Off \
          -D LIBCXX_ENABLE_STATIC_ABI_LIBRARY=Yes \
-         -D LIBCXX_ENABLE_SHARED=YES \
-         -D LIBCXX_ENABLE_STATIC=YES \
-         -D LLVM_ENABLE_LLD=ON \
-         -D LLVM_BUILD_LLVM_DYLIB=YES \
-         -D LLVM_LIBC_ENABLE_LINTING=Off \
-         -D COMPILER_RT_ENABLE_IOS:BOOL=Off \
+         -D LIBCXX_ENABLE_SHARED=Yes \
+         -D LIBCXX_ENABLE_STATIC=Yes \
+         -D LLVM_BUILD_LLVM_DYLIB=Yes \
+         -D LLVM_TARGETS_TO_BUILD="X86;AArch64;ARM;WebAssembly" \
          -D CMAKE_INSTALL_PREFIX:PATH="$INSTALL_PREFIX" \
          $SRC_D/llvm-project/llvm
 
-    nice make -j$(nproc) 2>$BUILD_D/stderr.text | tee $BUILD_D/stdout.text
-    nice make install 2>>$BUILD_D/stderr.text | tee -a $BUILD_D/stdout.text
-    cat $BUILD_D/stderr.text   
+    nice make -j$(nproc) > >(tee -a $BUILD_D/stdout.text) 2> >(tee -a $BUILD_D/stderr.text >&2)
+    nice make install    > >(tee -a $BUILD_D/stdout.text) 2> >(tee -a $BUILD_D/stderr.text >&2)
 }
 
 # -------------------------------------------------------------------------- gcc
@@ -248,8 +245,8 @@ build_gcc()
          --with-gcc-major-version-only \
          --disable-nls
     
-    nice make -j$(nproc) 2>$SRCD/build/stderr.text | tee $SRCD/build/stdout.text
-    nice make install | tee -a $SRCD/build/stdout.text
+    nice make -j$(nproc) > >(tee -a $SRCD/build/stdout.text) 2> >(tee -a $SRCD/build/stderr.text >&2)
+    nice make install    > >(tee -a $SRCD/build/stdout.text) 2> >(tee -a $SRCD/build/stderr.text >&2)
 }
 
 # ------------------------------------------------------------------------ parse
@@ -305,7 +302,7 @@ SCRIPT_NAME="$(basename "$THIS_SCRIPT")"
 if [ "$CLEANUP" = "True" ] ; then
     TMPD="$(mktemp -d /tmp/$(basename "$SCRIPT_NAME" .sh).XXXXXX)"
 else
-    TMPD="/tmp/$(basename "$SCRIPT_NAME" .sh)-${USER}"
+    TMPD="/tmp/${USER}-toolchains/builddir"
     mkdir -p "$TMPD"
     echo "Setting TMPD=$TMPD"
 fi
