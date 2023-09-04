@@ -1,8 +1,7 @@
 load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain")
-
-load(":common.bzl", "collect_cc_dependencies", "is_workspace_target",
-     "is_c_file", "rule_cc_sources", "CcRuleInfoSet", "collect_cc_actions", "is_valid_src_file",
+load(":common.bzl",
+     "is_c_file", "CcRuleInfoSet", "collect_cc_actions", "is_valid_src_file",
      "append_compiler_context_flags")
 
 # -- Runs clang-tidy
@@ -36,8 +35,6 @@ def gen_tidy_logic(ctx, compilation_context, label, kind, attr, srcs, cflags, cx
     outputs = []
     if not hasattr(attr, "srcs"):
         return outputs    
-
-    rule_flags = attr.copts if hasattr(attr, "copts") else []
     
     for src in srcs:
         outfile = ctx.actions.declare_file(src.path + ".clang-tidy")
@@ -101,34 +98,7 @@ def _clang_tidy_check_impl(ctx):
             )
             
     return [DefaultInfo(files = depset(outfiles))]
-    
-#     inputs = [file for target in ctx.attr.targets
-#               for file in target[OutputGroupInfo]._collected_cc_deps.to_list()] 
-#     outfiles = []
-#     for file in inputs:
-#         outfile = ctx.actions.declare_file(file.path + ".clang-tidy")
-#         outfiles.append(outfile)
-
-#         command = """
-# rm -f {3} && touch {3}
-# [ -e .clang-tidy ] || ln -s -f "{}" .clang-tidy
-
-# {0} {1} {2} && touch {3}
-# """.format(exe, config_arg, file.path, outfile.path)
-
-#         inputs = [file]
-#         if ctx.attr.config_file:
-#             inputs.append(config_file)
         
-#         ctx.actions.run_shell(
-#             inputs = inputs,
-#             outputs = [outfile],
-#             tools = tools,
-#             command = command,
-#         )
-    
-#     return [DefaultInfo(files = depset(outfiles))]
-    
 clang_tidy_internal = rule(
     implementation = _clang_tidy_check_impl,
     attrs = {

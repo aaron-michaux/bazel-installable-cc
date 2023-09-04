@@ -1,24 +1,23 @@
 load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
-load("@initialize_toolchain//:defs.bzl", "clang_format", "clang_tidy")
+load("@initialize_toolchain//:defs.bzl", "compile_commands", "clang_format", "clang_tidy")
 
 exports_files([
     ".clang-format", ".clang-tidy",
 ])
 
 # -- Targets
-# There's two clang format rules (check and fix), and 1 tidy rule.
-# We'd like them to all work across the same set of targets. So
-# the targets are specified here.
+# There's two clang format rules (check and fix), 1 tidy rule, and 1 refresh comp command rule
+# We'd like them to all work across the same set of targets. So the targets are specified here.
 FORMAT_TIDY_TARGETS = ["//example/src:main"]
 
 # -- The compilation database
 
-refresh_compile_commands(
-    name = "refresh_compile_commandsb",
-    targets = {
-        "//example/...": "--config=compdb",
-    },
+compile_commands(
+    name = "refresh_compile_commands",
+    targets = FORMAT_TIDY_TARGETS,
+    indent = True, # Human readable, but larger output
+    # NOTE: the resulting file will be: `bazel-bin/compilation_database.json`
 )
 
 filegroup(

@@ -356,6 +356,7 @@ def initialization_impl_(repo_ctx):
     repo_ctx.file("common.bzl", content = repo_ctx.read(Label("//internal:common.bzl")), executable = False)
     repo_ctx.file("clang_tidy.bzl", content = repo_ctx.read(Label("//internal:clang_tidy.bzl")), executable = False)
     repo_ctx.file("clang_format.bzl", content = repo_ctx.read(Label("//internal:clang_format.bzl")), executable = False)
+    repo_ctx.file("compile_commands.bzl", content = repo_ctx.read(Label("//internal:compile_commands.bzl")), executable = False)
 
     # Set up the BUILD template
     flags = repo_ctx.attr.toolchain_flags if repo_ctx.attr.toolchain_flags else []

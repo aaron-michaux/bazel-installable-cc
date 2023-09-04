@@ -1,85 +1,84 @@
-# NOTE: to use `compile_comands.bzl`, initialize must be called with name="initialize_toolchain"(
-load("@initialize_toolchain//:toolchain_common.bzl", "ToolPathsAndFeaturesInfo")
-load(":defs.bzl", "is_workspace_target", "is_cc_rule")
-
-CcRuleInfoSet = provider(
-    "A cc build rule of some kind",
-    fields = {
-        "cc_infos": "a list of structs [{'kind', 'attr'}, ...]",
-    }
-)
-
-def _cc_actions_aspect_impl(target, ctx):
-    collected = []
-    if is_cc_rule(ctx.rule) and is_workspace_target(target):
-        collected = [{"kind": ctx.rule.kind, "attr": ctx.rule.attr}]
-        if hasattr(ctx.rule.attr, "deps"):
-            for dep in ctx.rule.attr.deps:
-                if CcRuleInfoSet in dep:
-                    collected += dep[CcRuleInfoSet].cc_infos
-    return [CcRuleInfoSet(cc_infos = collected)]
-    
-cc_actions_aspect = aspect(
-    implementation = _cc_actions_aspect_impl,
-    attr_aspects = ["deps"],
-    provides = [CcRuleInfoSet]
-)
-
-# --
-
-def parse_toolchain_config_info(s):
-    # key: value (string, bool...)
-    # typename { ... }
-
-    
-    pass
+load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
+load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain")
+load(":common.bzl",
+     "is_c_file", "CcRuleInfoSet", "collect_cc_actions", "is_valid_src_file",
+     "append_compiler_context_flags")
 
 # -- Compile commands
 
+    
+
+def gen_compile_commands_logic(ctx, compilation_context, compiler_exe, label, kind, attr, srcs, cflags, cxxflags):
+
+    def make_comp_commands(src):
+        is_c = is_c_file(src)
+        flags = append_compiler_context_flags(cflags if is_c else cxxflags, compilation_context)
+
+        parts = src.path.split(".")
+        if len(parts) > 1:
+            parts.pop()
+        objfile_path = ".".join(parts) + ".o"
+        
+        return {
+            "directory": ".",
+            "file": src.path,
+            "output": objfile_path,
+            "arguments": [compiler_exe] + ["-x", "c" if is_c else "c++"] + flags + ["-o", objfile_path],
+        }
+
+    return [make_comp_commands(src) for src in srcs]
+
 def _compile_commands_impl(ctx):
-    """Get the compile commands for a list of targets
-
-    Limitations: 
-     * This is no access to command line options like --copts, thus
-       all compile options should be switched on/off through features.
-     * An individual package can toggle features; however, there's no
-       way for an action to query which features are on/off. 
-    """
-    info = ctx.attr.cc_configuration[ToolPathsAndFeaturesInfo]
-    tool_paths = info.tool_paths
-    features = info.features
-
-    # Input files... only interested in '.cc' files
-    # all_inputs = [file for target in ctx.attr.targets
-    #               for file in target[OutputGroupInfo]._collected_cc_deps.to_list()]
-    # inputs = [f for f in all_inputs if is_cc_file(f.path)]
-
-    #CC_TOOLCHAIN_TYPE = "@bazel_tools//tools/cpp:toolchain_type"
-
-    # Type is `CcToolchainInfo`
- 
-    # We could parse this list of "json-like" structure to get the toolchain info
-
-    inputs = [cc_info for target in ctx.attr.targets
-              for cc_info in target[CcRuleInfoSet].cc_infos] 
-    print("INPUTS: ", inputs)
+    cc_toolchain = find_cpp_toolchain(ctx)
+    compiler_exe = cc_toolchain.compiler_executable
     
-    cc_config = ctx.attr.cc_configuration[CcToolchainConfigInfo]
-    print(parse_toolchain_config_info(cc_config.proto))
+    # A list of cc_rules
+    cc_infos = [(info, t[CcInfo].compilation_context)
+                 for t in ctx.attr.targets for info in t[CcRuleInfoSet].cc_infos]
 
-    print(ctx.features)
-    print(ctx.var)
-    print(ctx.configuration)
+    # Run on all cc_infos, skipping duplicates
+    outputs = []
+    cc_dict = {}
+    for cc_info, compilation_context in cc_infos:        
+        l = cc_info["label"]
+        name = "@{}//{}:{}".format(l.workspace_name, l.package, l.name)
+        if not name in cc_dict:            
+            cc_dict[name] = cc_info
+            outputs += gen_compile_commands_logic(
+                ctx,
+                compilation_context,
+                compiler_exe,
+                cc_info["label"],
+                cc_info["kind"],
+                cc_info["attr"],
+                cc_info["srcs"],
+                cc_info["cflags"],
+                cc_info["cxxflags"]
+            )
+
+    # Bring it all together for a single compdb file
+    outfile = ctx.actions.declare_file("compilation_database.json")
+    ctx.actions.write(
+        output = outfile,
+        is_executable = False,
+        content = json.encode_indent(outputs) if ctx.attr.indent else json.encode(outputs)
+    )
     
-    return []
-
+    return [DefaultInfo(files = depset([outfile]))]
+    
 compile_commands_internal = rule(
     implementation = _compile_commands_impl,
     attrs = {
-        "targets": attr.label_list(aspects = [cc_actions_aspect]),
-        "cc_configuration": attr.label(mandatory = True),
+        "targets": attr.label_list(aspects = [collect_cc_actions]),
+        "indent": attr.bool(default = False), # Makes database larger bigger
     },    
+    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )
 
 
 
+        # ctx.actions.write(
+        #     output = outfile,
+        #     is_executable = False,
+        #     content = json.encode_indent(content) if do_indent else json.encode(content)
+        # )    

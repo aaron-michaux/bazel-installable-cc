@@ -64,7 +64,7 @@ collect_cc_dependencies = aspect(
 # -- For joining compiler commands with compiler_context flags
 
 def append_compiler_context_flags(flags, compilation_context):
-    args = flags
+    args = [x for x in flags]
     args += ["-D" + d for d in compilation_context.defines.to_list()]
     args += ["-D" + d for d in compilation_context.local_defines.to_list()]
     args += ["-F" + f for f in compilation_context.framework_includes.to_list()]
