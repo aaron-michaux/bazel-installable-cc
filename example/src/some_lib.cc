@@ -6,8 +6,6 @@
 
 namespace Cple::BazelTest {
 
-std::string_view some_string() {
-  return "Some Lib!";
-}
+std::string_view some_string() { return "Some Lib!"; }
 
 } // namespace Cple::BazelTest

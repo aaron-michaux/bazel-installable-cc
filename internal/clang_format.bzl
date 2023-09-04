@@ -3,7 +3,7 @@ load(":common.bzl", "collect_cc_dependencies")
 # -- Runs clang-format
     
 def _clang_format_check_impl(ctx):
-    is_check_only = (ctx.attr.mode == "check")
+    is_check_only = (ctx.attr.mode == "check")    
     flags = "-n -Werror" if is_check_only else "-i"
     extension = ".format-check" if is_check_only else ".format-fix"
 
@@ -20,19 +20,40 @@ def _clang_format_check_impl(ctx):
         outfile = ctx.actions.declare_file(file.path + extension)
         outfiles.append(outfile)
 
-        command = "{} -n -Werror {} && touch {}".format(exe, file.path, outfile.path)
-        if not is_check_only:
-            command = "{} -i {} && {}".format(exe, file.path, command)
+        # command = "{} -n -Werror {} && touch {}".format(exe, file.path, outfile.path)
+        # if not is_check_only:
+        #     command = "{} -i {} && {}".format(exe, file.path, command)
 
+        args = ctx.actions.args()
+        args.add("True" if ctx.attr.mode == "check" else "False")
+        args.add(file.path)
+        args.add(outfile.path)
+        
+        command = """
+set -euo pipefail
+echo "ARGS = $*"
+CHECK_ONLY="$1"
+FILENAME="$2"
+OUTFILE="$3"
+rm -f "$OUTFILE"
+if [ "$CHECK_ONLY" = "False" ] ; then
+   {0} -i "$FILENAME"
+fi
+{0} -n -Werror "$FILENAME" && touch "$OUTFILE" && exit 0
+exit 1
+""".format(exe)
+            
         inputs = [file]
         if ctx.attr.config_file:
             inputs += ctx.attr.config_file.files.to_list()
         
         ctx.actions.run_shell(
+            mnemonic = "ClangFormat",
             inputs = inputs,
             outputs = [outfile],
-            tools = tools,
             command = command,
+            arguments = [args],
+            tools = tools,
         )
     
     return [DefaultInfo(files = depset(outfiles))]

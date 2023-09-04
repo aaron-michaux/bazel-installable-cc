@@ -74,4 +74,4 @@ build:compdb --compilation_mode=dbg
 # -- Static Analysis
 
 build:static_analysis --config=llvm
-build:static_analysis --compilation_mode=dbg
+build:static_analysis --compilation_mode=fastbuild

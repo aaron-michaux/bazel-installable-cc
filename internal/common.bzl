@@ -16,15 +16,15 @@ def is_c_file(file):
 def is_cc_rule(rule):
     return rule.kind in ["cc_binary", "cc_library", "cc_shared_library", "cc_test"]
 
-def is_valid_src_file(file):
-    if not file.is_source:
-        return False
+def is_valid_src_hdr_file(file):
     file_types = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C", ".h", ".hh", ".hpp", ".hxx", ".H"]
     for type in file_types:
         if file.basename.endswith(type):
             return True
     return False
 
+def is_valid_src_file(file):
+    return file.is_source and is_valid_src_hdr_file(file)
 
 # -- Aspect to collect C++ source and header files
 
@@ -40,7 +40,11 @@ def rule_cc_sources(rule):
     files = []
     if is_cc_rule(rule):
         if hasattr(rule.attr, "srcs"):
-            files += [file for file in rule.attr.srcs if is_valid_src_file(file)]
+            for src in rule.attr.srcs:
+                files += [file for file in src.files.to_list() if is_valid_src_hdr_file(file)]
+        if hasattr(rule.attr, "hdrs"):
+            for hdr in rule.attr.hdrs:
+                files += [file for file in hdr.files.to_list() if is_valid_src_hdr_file(file)]
     return files
 
 def _collect_cc_dependencies_impl(target, ctx):

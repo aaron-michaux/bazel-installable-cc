@@ -64,12 +64,12 @@ rm -f {1} && touch {1} && {0} "$@"
 [ -s {1} ] && exit 1 || exit 0
         """.format(exe, outfile.path)
         ctx.actions.run_shell(
+            mnemonic = "ClangTidy",
             inputs = calc_inputs(src, config_file, compilation_context),
             outputs = [outfile],
+            command = command,
             arguments = [args],
-            mnemonic = "ClangTidy",
-            tools = tools,
-            command = command
+            tools = tools
         )
         
     return outputs

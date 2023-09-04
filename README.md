@@ -24,9 +24,13 @@ Furthermore, as a matter of professional development, I wanted to do this projec
 
 ## Notes:
 
- * bazel build --config static_analysis //example/src:all
+The `standalone` spawn strategy is required for `buildifier_fix` and `format_fix` to work.
+
+ * bazel build --config static_analysis :static_analysis
  * bazel build //:buildifier_check
+ * bazel build //:format_check
  * bazel build --spawn_strategy=standalone //:buildifier_fix
+ * bazel build --spawn_strategy=standalone //:format_fix
  * bazel build :refresh_compile_commands
 
 ## TODOs
