@@ -22,18 +22,6 @@ git_repository(
     remote = "https://github.com/bazelbuild/rules_cc.git",
 )
 
-git_repository(
-    name = "bazel_clang_tidy",
-    commit = "133d89a6069ce253a92d32a93fdb7db9ef100e9d",
-    remote = "https://github.com/erenon/bazel_clang_tidy.git",
-)
-
-git_repository(
-    name = "hedron_compile_commands",
-    commit = "e16062717d9b098c3c2ac95717d2b3e661c50608",
-    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
-)
-
 # Buildifier is compiled by GO
 http_archive(
     name = "io_bazel_rules_go",
@@ -88,10 +76,6 @@ initialize_toolchain(
 load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
 
 bazel_skylib_workspace()
-
-load("@hedron_compile_commands//:workspace_setup.bzl", "hedron_compile_commands_setup")
-
-hedron_compile_commands_setup()
 
 # for Buildifier
 load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
