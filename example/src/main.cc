@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2023 Broadcom.  All rights reserved.
+ * Copyright (c) 2023 Broadcom.  All
+ * rights reserved.
  */
 
 #include "some_lib.h"
@@ -11,7 +12,6 @@
 
 // NOLINTNEXTLINE(bugprone-exception-escape)
 int main(int, char**) {
-  fmt::print("hello world, {}\n", Cple::BazelTest::some_string());
+  fmt::print("Hello world, {}\n", Cple::BazelTest::some_string());
   return EXIT_SUCCESS;
-
 }

@@ -302,7 +302,7 @@ SCRIPT_NAME="$(basename "$THIS_SCRIPT")"
 if [ "$CLEANUP" = "True" ] ; then
     TMPD="$(mktemp -d /tmp/$(basename "$SCRIPT_NAME" .sh).XXXXXX)"
 else
-    TMPD="/tmp/${USER}-toolchains/builddir"
+    TMPD="/tmp/$([ "$USER" != "" ] && echo "${USER}-")toolchains/builddir"
     mkdir -p "$TMPD"
     echo "Setting TMPD=$TMPD"
 fi

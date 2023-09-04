@@ -890,11 +890,20 @@ COMMON_ATTRIBUTES = {
     "link_libs": attr.string_list(),
 }
 
+ToolPathsAndFeaturesInfo = provider(
+    "z",
+    fields = {
+        "tool_paths": "info",
+        "features": "info"
+    }
+)
+
 # buildifier: disable=function-docstring
 def _impl(ctx):
     tool_paths = calculate_toolchain_paths(ctx)
     extra_inc_dirs = ctx.attr.extra_include_directories if ctx.attr.extra_include_directories else []
     build_inc_dirs = ctx.attr.cxx_builtin_include_directories + extra_inc_dirs
+    features = make_base_features(ctx)
     return [
         cc_common.create_cc_toolchain_config_info(
             ctx = ctx,
@@ -907,15 +916,19 @@ def _impl(ctx):
             abi_version = ctx.attr.abi_version,
             abi_libc_version = ctx.attr.abi_libc_version,
             tool_paths = tool_paths,
-            features = make_base_features(ctx),
+            features = features,
             cxx_builtin_include_directories = build_inc_dirs,
+        ),
+        ToolPathsAndFeaturesInfo(
+            tool_paths = tool_paths,
+            features = features
         ),
     ]
 
 unix_toolchain_config = rule(
     implementation = _impl,
     attrs = COMMON_ATTRIBUTES,
-    provides = [DefaultInfo, CcToolchainConfigInfo],
+    provides = [DefaultInfo, CcToolchainConfigInfo, ToolPathsAndFeaturesInfo],
 )
 
 #

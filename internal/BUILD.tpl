@@ -26,11 +26,43 @@ make_toolchain_from_install_root(
     is_host_compiler = USE_HOST_COMPILER,
 )
 
-# -- Clang Tidy
+alias(
+    name = "cc_configuration",
+    actual = ":cc_config",
+)
 
+# -- Clang Tidy
+# Override this values on the commandline:
+# build:static_analysis --@<this_repo_name>//:clang_tidy_bin=//path/to/your/clang/tidy
+#      For example: --@initialize_toolchain//:clang_tidy_bin=//:clang_tidy_bin
 binary_alias(
-    name = "clang_tidy_bin",
+    name = "clang_tidy_executable",
     src = TOOLCHAIN_DIRECTORY + "/bin/clang-tidy",
+)
+
+filegroup(
+    name = "compile_commands_default",
+    srcs = ["compile_commands.json"]
+)
+
+filegroup(
+    name = "clang_tidy_config_default",
+    srcs = [".clang-tidy"]
+)
+
+label_flag(
+    name = "clang_tidy_bin",
+    build_setting_default = ":clang_tidy_executable",
+)
+
+label_flag(
+    name = "clang_tidy_config",
+    build_setting_default = ":clang_tidy_config_default",
+)
+
+label_flag(
+    name = "compile_commands",
+    build_setting_default = ":compile_commands_default",
 )
 
 # -- Clang Format

@@ -1,6 +1,7 @@
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 
-package(default_visibility = ["//visibility:public"])
+package(features = ["-tsan"],
+        default_visibility = ["//visibility:public"])
 
 cc_binary(
     name = "main",
@@ -9,6 +10,7 @@ cc_binary(
         ":some_lib_lib",
         "@fmtlib//:fmt",
     ],
+    copts = ["-pedantic"],
 )
 
 cc_library(

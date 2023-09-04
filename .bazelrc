@@ -33,6 +33,12 @@ build:llvm14  --repo_env=compiler=llvm-14.0.6
 build:llvm15  --repo_env=compiler=llvm-15.0.7
 build:llvm16  --repo_env=compiler=llvm-16.0.6
 
+# -- Actions
+build:format_check --config=llvm
+
+build:format_fix --config=llvm
+build:format_fix --spawn_strategy=standalone
+
 # -- stdcxx
 
 build:stdcxx --features=stdcxx
@@ -67,10 +73,5 @@ build:compdb --compilation_mode=dbg
 
 # -- Static Analysis
 
-build:static_analysis --config=clang
+build:static_analysis --config=llvm
 build:static_analysis --compilation_mode=dbg
-build:static_analysis --aspects @bazel_clang_tidy//clang_tidy:clang_tidy.bzl%clang_tidy_aspect
-build:static_analysis --output_groups=report
-build:static_analysis --build_tag_filters=-no_static_analysis
-build:static_analysis --@bazel_clang_tidy//:clang_tidy_config=//:clang_tidy_config
-build:static_analysis --@bazel_clang_tidy//:clang_tidy_executable=//:clang_tidy_bin

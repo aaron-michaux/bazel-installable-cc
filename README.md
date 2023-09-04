@@ -25,8 +25,8 @@ Furthermore, as a matter of professional development, I wanted to do this projec
 ## Notes:
 
  * bazel build --config static_analysis //example/src:all
- * bazel run //:buildifier_check
- * bazel run //:buildifier_fix
+ * bazel build //:buildifier_check
+ * bazel build --spawn_strategy=standalone //:buildifier_fix
  * bazel build :refresh_compile_commands
 
 ## TODOs

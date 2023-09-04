@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export TOOLCHAINS_DIR="/tmp/${USER}-toolchains"
+export TOOLCHAINS_DIR="/tmp/$([ "$USER" != "" ] && echo "${USER}-")toolchains"
 export PLATFORM="$(uname -s | tr '[:upper:]' '[:lower:]')"
 export MACHINE="$(uname -m)"
 
