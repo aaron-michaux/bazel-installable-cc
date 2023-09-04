@@ -4,7 +4,6 @@ load(":common.bzl", "collect_cc_dependencies")
     
 def _clang_format_check_impl(ctx):
     is_check_only = (ctx.attr.mode == "check")    
-    flags = "-n -Werror" if is_check_only else "-i"
     extension = ".format-check" if is_check_only else ".format-fix"
 
     # By default, use `clang-format` on PATH
@@ -20,12 +19,8 @@ def _clang_format_check_impl(ctx):
         outfile = ctx.actions.declare_file(file.path + extension)
         outfiles.append(outfile)
 
-        # command = "{} -n -Werror {} && touch {}".format(exe, file.path, outfile.path)
-        # if not is_check_only:
-        #     command = "{} -i {} && {}".format(exe, file.path, command)
-
         args = ctx.actions.args()
-        args.add("True" if ctx.attr.mode == "check" else "False")
+        args.add("True" if is_check_only == True else "False")
         args.add(file.path)
         args.add(outfile.path)
         
