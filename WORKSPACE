@@ -64,7 +64,7 @@ load("//example/config:toolchain_flags.bzl", "TOOLCHAIN_FLAGS")
 load("//:initialization.bzl", "initialize_toolchain")
 
 initialize_toolchain(
-    name = "initialize_toolchain", # This label required for 'compile_commands' to work!
+    name = "initialize_toolchain",
     manifest = MANIFEST,  # Availabe toolchains
     no_check_certificate = True,  # For https, don't check certs
     toolchain_flags = TOOLCHAIN_FLAGS,  # Flag customization

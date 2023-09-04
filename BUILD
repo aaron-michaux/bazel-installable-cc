@@ -1,4 +1,3 @@
-load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
 load("@initialize_toolchain//:defs.bzl", "compile_commands", "clang_format", "clang_tidy")
 
@@ -23,7 +22,6 @@ compile_commands(
 filegroup(
     name = "compile_commands",
     srcs = ["compile_commands.json"],
-    visibility = ["//visibility:public"],
 )
 
 # -- Buildifier
@@ -47,7 +45,6 @@ buildifier(
 filegroup(
     name = "clang_format_config",
     srcs = [".clang-format"],
-    visibility = ["//visibility:public"],
 )
 
 alias(
@@ -76,7 +73,6 @@ clang_format(
 filegroup(
     name = "clang_tidy_config",
     srcs = [".clang-tidy"],
-    visibility = ["//visibility:public"],
 )
 
 alias(

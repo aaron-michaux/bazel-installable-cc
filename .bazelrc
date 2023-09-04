@@ -28,6 +28,7 @@ build:gcc10   --repo_env=compiler=gcc-10.5.0
 build:gcc11   --repo_env=compiler=gcc-11.4.0
 build:gcc12   --repo_env=compiler=gcc-12.3.0
 build:gcc13   --repo_env=compiler=gcc-13.2.0
+build:llvm12  --repo_env=compiler=llvm-12.0.1
 build:llvm13  --repo_env=compiler=llvm-13.0.1
 build:llvm14  --repo_env=compiler=llvm-14.0.6
 build:llvm15  --repo_env=compiler=llvm-15.0.7
@@ -69,7 +70,7 @@ build:tsan --test_env="TSAN_OPTIONS=suppressions=example/config/suppressions/tsa
 # -- Compilation Database
 
 build:compdb --config=llvm
-build:compdb --compilation_mode=dbg
+build:compdb --compilation_mode=fastbuild
 
 # -- Static Analysis
 
