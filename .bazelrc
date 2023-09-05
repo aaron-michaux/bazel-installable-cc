@@ -71,6 +71,8 @@ build:tsan --test_env="TSAN_OPTIONS=suppressions=example/config/suppressions/tsa
 
 build:compdb --config=llvm
 build:compdb --compilation_mode=fastbuild
+# build:compdb --aspects @initialize_toolchain//:defs.bzl%compile_commands_aspect
+# build:compdb --output_groups=commands
 
 # -- Static Analysis
 

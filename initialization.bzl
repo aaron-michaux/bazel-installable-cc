@@ -314,7 +314,7 @@ def download_and_extract(
 
 # ----------------------------------------------------- initialization repo-rule
 
-def initialization_impl_(repo_ctx):   
+def _initialization_impl(repo_ctx):   
     # Basic environment
     home_dir = repo_ctx.os.environ.get("HOME")
     if not home_dir:
@@ -372,7 +372,7 @@ def initialization_impl_(repo_ctx):
     repo_ctx.template("BUILD", Label("//internal:BUILD.tpl"), template_substitutions, executable = False)
 
 initialization = repository_rule(
-    implementation = initialization_impl_,
+    implementation = _initialization_impl,
     local = True,
     attrs = {
         "download_urls": attr.string_list(mandatory = True),

@@ -113,8 +113,3 @@ clang_tidy_internal = rule(
     }
 )
 
-
-
-
-
-

@@ -8,6 +8,7 @@ exports_files([
 # -- Targets
 # There's two clang format rules (check and fix), 1 tidy rule, and 1 refresh comp command rule
 # We'd like them to all work across the same set of targets. So the targets are specified here.
+
 FORMAT_TIDY_TARGETS = ["//example/src:main"]
 
 # -- The compilation database

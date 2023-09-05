@@ -75,10 +75,3 @@ compile_commands_internal = rule(
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )
 
-
-
-        # ctx.actions.write(
-        #     output = outfile,
-        #     is_executable = False,
-        #     content = json.encode_indent(content) if do_indent else json.encode(content)
-        # )    
