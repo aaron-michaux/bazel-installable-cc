@@ -33,7 +33,6 @@ See `makefile` for examples of how to piece everything together
  * Front end script (bazel aspects?? build.sh??? makefile????)
    - Front end should run under valgrind/helgrind with suppressions
    - Front end should auto-support gdb for any target
-   - Ensure output-dir works -- no dumping of the analysis cache
  * Cross-compiler (is sysroot enough?)
  * Works on macos (with brew)
 
