@@ -24,6 +24,10 @@ def warn(repo_ctx, message):
         )
     repo_ctx.execute(["./warn.sh", message], quiet = False)
 
+def there_will_be_only_once(repo_ctx):
+    """Bazel seems to execute this rule multiple times unless you slow it down"""
+    repo_ctx.execute(["sleep", "0.01"], quiet = False)
+
 # ----------------------------------------------------------------- bash helpers
 
 def bash_quote(s):
@@ -316,6 +320,8 @@ def download_and_extract(
 
 def _initialization_impl(repo_ctx):
     compiler_env = repo_ctx.os.environ.get("compiler", "host")
+
+    there_will_be_only_once(repo_ctx)
 
     # Basic environment
     home_dir = repo_ctx.os.environ.get("HOME")

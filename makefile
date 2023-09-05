@@ -50,14 +50,16 @@ static_analysis:
 
 format_check:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	#bazel --output_base=$(OUTPUT_BASE)/format_check run :buildifier_check
-	bin/run_clang_format.sh --check --config=llvm //example/...
+	tools/target_lists/refresh.sh
+	bazel --output_base=$(OUTPUT_BASE)/clang_format build --config=llvm :format_check
+	bazel --output_base=$(OUTPUT_BASE)/buildifier run :buildifier_check
 	@$(RECIPETAIL)
 
 format_fix:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bin/run_clang_format.sh --fix --config=llvm //example/...
-	bazel --output_base=$(OUTPUT_BASE)/format_fix   run --spawn_strategy=standalone :buildifier_fix
-	bazel --output_base=$(OUTPUT_BASE)/format_check run --spawn_strategy=standalone :buildifier_check
+	tools/target_lists/refresh.sh
+	bazel --output_base=$(OUTPUT_BASE)/clang_format build --spawn_strategy=standalone --config=llvm :format_fix
+	bazel --output_base=$(OUTPUT_BASE)/buildifier run --spawn_strategy=standalone :buildifier_fix
+	bazel --output_base=$(OUTPUT_BASE)/buildifier run --spawn_strategy=standalone :buildifier_check
 	@$(RECIPETAIL)
 
