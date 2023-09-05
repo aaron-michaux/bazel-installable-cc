@@ -1151,19 +1151,17 @@ def make_toolchain_from_install_root(
         if not version:
             fail("ERROR: could not deduce clang/gcc version from install_root: {}".format(install_root))
         major_version = version.split(".")[0]
+        suffix = ("-" + major_version) if is_gcc else ""
 
         # Architecture, suffix, and cxx_builtin_include_dirs is done differently
         # for brew/macos
         architecture = None
-        suffix = None
         cxx_builtin_include_directories = None
         if operating_system == "linux":
             architecture = "x86_64-pc-linux-gnu" if is_gcc else "x86_64-unknown-linux-gnu"
-            suffix = ("-" + major_version) if is_gcc else ""
         else:
             architecture = sys_machine
             version = major_version
-            suffix = ("-" + major_version)
             cxx_builtin_include_directories = host_cxx_builtin_dirs
         config_label = label + "_config"
         
