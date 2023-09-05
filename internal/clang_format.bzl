@@ -1,19 +1,22 @@
 load(":common.bzl", "collect_cc_dependencies")
 
 # -- Runs clang-format
-    
+
 def _clang_format_check_impl(ctx):
-    is_check_only = (ctx.attr.mode == "check")    
+    is_check_only = (ctx.attr.mode == "check")
     extension = ".format-check" if is_check_only else ".format-fix"
 
     # By default, use `clang-format` on PATH
     tools = []
     if ctx.attr.clang_format:
-        tools += [ctx.executable.clang_format]        
+        tools.append(ctx.executable.clang_format)
     exe = ctx.executable.clang_format.path if ctx.attr.clang_format else "clang-format"
-        
-    inputs = [file for target in ctx.attr.targets
-              for file in target[OutputGroupInfo]._collected_cc_deps.to_list()] 
+
+    inputs = [
+        file
+        for target in ctx.attr.targets
+        for file in target[OutputGroupInfo]._collected_cc_deps.to_list()
+    ]
     outfiles = []
     for file in inputs:
         outfile = ctx.actions.declare_file(file.path + extension)
@@ -23,10 +26,9 @@ def _clang_format_check_impl(ctx):
         args.add("True" if is_check_only == True else "False")
         args.add(file.path)
         args.add(outfile.path)
-        
+
         command = """
 set -euo pipefail
-echo "ARGS = $*"
 CHECK_ONLY="$1"
 FILENAME="$2"
 OUTFILE="$3"
@@ -37,11 +39,11 @@ fi
 {0} -n -Werror "$FILENAME" && touch "$OUTFILE" && exit 0
 exit 1
 """.format(exe)
-            
+
         inputs = [file]
         if ctx.attr.config_file:
             inputs += ctx.attr.config_file.files.to_list()
-        
+
         ctx.actions.run_shell(
             mnemonic = "ClangFormat",
             inputs = inputs,
@@ -50,7 +52,7 @@ exit 1
             arguments = [args],
             tools = tools,
         )
-    
+
     return [DefaultInfo(files = depset(outfiles))]
 
 clang_format_internal = rule(
@@ -63,6 +65,6 @@ clang_format_internal = rule(
             cfg = "exec",
         ),
         "config_file": attr.label(mandatory = False),
-        "mode": attr.string(values = ["check", "fix"], mandatory = True)
-    }
+        "mode": attr.string(values = ["check", "fix"], mandatory = True),
+    },
 )

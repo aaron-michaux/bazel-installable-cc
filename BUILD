@@ -1,8 +1,9 @@
 load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
-load("@initialize_toolchain//:defs.bzl", "compile_commands", "clang_format", "clang_tidy")
+load("@initialize_toolchain//:defs.bzl", "clang_format", "clang_tidy")
 
 exports_files([
-    ".clang-format", ".clang-tidy",
+    ".clang-format",
+    ".clang-tidy",
 ])
 
 # -- Targets
@@ -10,20 +11,6 @@ exports_files([
 # We'd like them to all work across the same set of targets. So the targets are specified here.
 
 FORMAT_TIDY_TARGETS = ["//example/src:main"]
-
-# -- The compilation database
-
-compile_commands(
-    name = "refresh_compile_commands",
-    targets = FORMAT_TIDY_TARGETS,
-    indent = True, # Human readable, but larger output
-    # NOTE: the resulting file will be: `bazel-bin/compilation_database.json`
-)
-
-filegroup(
-    name = "compile_commands",
-    srcs = ["compile_commands.json"],
-)
 
 # -- Buildifier
 
@@ -55,17 +42,17 @@ alias(
 
 clang_format(
     name = "format_check",
-    mode = "check",
     clang_format = ":clang_format_bin",
     config_file = ":clang_format_config",
+    mode = "check",
     targets = FORMAT_TIDY_TARGETS,
 )
 
 clang_format(
     name = "format_fix",
-    mode = "fix",
     clang_format = ":clang_format_bin",
     config_file = ":clang_format_config",
+    mode = "fix",
     targets = FORMAT_TIDY_TARGETS,
 )
 
@@ -85,7 +72,5 @@ clang_tidy(
     name = "static_analysis",
     clang_tidy = ":clang_tidy_bin",
     config_file = ":clang_tidy_config",
-    compile_commands = ":compile_commands",
     targets = FORMAT_TIDY_TARGETS,
 )
-

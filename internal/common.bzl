@@ -30,7 +30,7 @@ def is_valid_src_file(file):
 
 def rule_cc_sources(rule):
     """The source/header files of a CC rule, or empty
-    
+
     Args:
       rule: The rule being queried
 
@@ -55,7 +55,7 @@ def _collect_cc_dependencies_impl(target, ctx):
             collected.append(dep[OutputGroupInfo]._collected_cc_deps)
 
     return [OutputGroupInfo(_collected_cc_deps = depset(files, transitive = collected))]
-    
+
 collect_cc_dependencies = aspect(
     implementation = _collect_cc_dependencies_impl,
     attr_aspects = ["deps"],
@@ -70,8 +70,8 @@ def append_compiler_context_flags(flags, compilation_context):
     args += ["-F" + f for f in compilation_context.framework_includes.to_list()]
     args += ["-I" + i for i in compilation_context.includes.to_list()]
     args += ["-iquote" + q for q in compilation_context.quote_includes.to_list()]
-    args += ["-isystem" + s for s in compilation_context.system_includes.to_list()]    
-    return args    
+    args += ["-isystem" + s for s in compilation_context.system_includes.to_list()]
+    return args
 
 # -- Aspect to get everything about CC deps
 
@@ -79,7 +79,7 @@ CcRuleInfoSet = provider(
     "A cc build rule of some kind",
     fields = {
         "cc_infos": "a list of structs [{'kind', 'attr'}, ...]",
-    }
+    },
 )
 
 def calculate_toolchain_flags(ctx, action_name):
@@ -126,7 +126,7 @@ def _collect_cc_actions_impl(target, ctx):
         if hasattr(ctx.rule.attr, "copts"):
             cflags = cflags + ctx.rule.attr.copts
             cxxflags = cxxflags + ctx.rule.attr.copts
-                            
+
         collected = [{
             "label": ctx.label,
             "kind": ctx.rule.kind,
@@ -140,16 +140,14 @@ def _collect_cc_actions_impl(target, ctx):
                 if CcRuleInfoSet in dep:
                     collected += dep[CcRuleInfoSet].cc_infos
     return [CcRuleInfoSet(cc_infos = collected)]
-    
+
 collect_cc_actions = aspect(
     implementation = _collect_cc_actions_impl,
     fragments = ["cpp"],
     attr_aspects = ["deps"],
     attrs = {
-        "_cc_toolchains": attr.label(default = Label("@bazel_tools//tools/cpp:current_cc_toolchain"))
+        "_cc_toolchains": attr.label(default = Label("@bazel_tools//tools/cpp:current_cc_toolchain")),
     },
     provides = [CcRuleInfoSet],
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
-
 )
-

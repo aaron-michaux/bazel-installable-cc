@@ -7,7 +7,7 @@
 # -- Base Flags
 
 build --incompatible_enable_cc_toolchain_resolution
-build --incompatible_java_common_parameters
+build --incompatible_java_common_parameters 
 build --color=auto
 build --strip=never
 build --features=pic
@@ -17,9 +17,8 @@ build --features=c++17
 build --remote_local_fallback   # Fallback to a local build if remote fails
 
 # -- Compiler
-
 # The vendor can be auto-selected or manually specified
-#build         --repo_env=compiler-vendor=jammy
+#build         --repo_env=compiler-vendor=ubuntu-jammy
 build:gcc     --repo_env=compiler=host
 build:llvm    --repo_env=compiler=llvm-16.0.6
 build:clang   --config=llvm
@@ -71,8 +70,6 @@ build:tsan --test_env="TSAN_OPTIONS=suppressions=example/config/suppressions/tsa
 
 build:compdb --config=llvm
 build:compdb --compilation_mode=fastbuild
-# build:compdb --aspects @initialize_toolchain//:defs.bzl%compile_commands_aspect
-# build:compdb --output_groups=commands
 
 # -- Static Analysis
 

@@ -9,7 +9,6 @@ as a parameter.
 TOOLCHAIN_FLAGS = {
     # For the feature: --features=warnings
     "warning_flags": [
-        "-Wextra",  #
         # Include ["-Wall"]
     ],
     "base_compile_flags": [

@@ -1,10 +1,15 @@
 #!/bin/bash
 
+set -euo pipefail
+
+THIS_SCRIPT="$([ -L "$0" ] && readlink -f "$0" || echo "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$THIS_SCRIPT")" ; pwd -P)"
+
 show_help()
 {
     cat <<EOF
 
-   Usage: $(basename $0) <variable> [queries...]*
+   Usage: $(basename $0) [queries...]*
 
       Bazel provides no way to use a wildcard as a dependency:
 
@@ -20,11 +25,11 @@ show_help()
 
    Examples:
 
-      # Generate skylark for SOURCE_TARGETS = ["//source/:foo", ...]
-      > $(basename $0) SOURCE_TARGETS //source/... 
+      # Generate skylark list: ["//source/:foo", ...]
+      > $(basename $0) //source/... 
    
-      # Query multiple targets
-      > $(basename $0) SRC_INC_TARGETS //source/... //include...
+      # Generate a list for multiple queries:
+      > $(basename $0) //source/... //include...
 
 EOF
 }
@@ -35,12 +40,15 @@ for ARG in "$@" ; do
     [ "$ARG" = "-h" ] || [ "$ARG" = "--help" ] && show_help && exit 0
 done
 
-if (( $# == 0 )) ; then
-    echo "Expected at least a variable name, pass -h for help" 1>&2 && exit 1
-fi
-
-VARIABLE="$1"
-shift
+workspace_dir()
+{
+    while true ; do    
+        [ -f "WORKSPACE" ] && pwd -P && return 0
+        local D="$(pwd)"
+        cd ..
+        [ "$D" = "$(pwd)" ] && echo "Could not find WORKSPACE file, aborting" 1>&2 && exit 1
+    done
+}
 
 TMPD="$(mktemp -d /tmp/$(basename "$0").XXXXXX)"
 trap cleanup EXIT
@@ -65,12 +73,13 @@ query_targets()
 
 target_list()
 {
-    query_targets "$@" | sed 's,^, ",' | sed 's,$,",' | tr '\n' ',' | sed 's/,$//' | sed 's,^ *,,'
+    query_targets "$@" | sed 's,^,   ",' | sed 's/$/",/' 
 }
 
-print_as_string_list()
-{
-    printf "%s = [%s]\n" "$VARIABLE" "$(target_list "$@")"
-}
+target_list "$@" > "$TMPD/list"
+if [ "$(cat $TMPD/list)" = "" ] ; then
+    echo "[]"
+else
+    printf "[\n%s\n]" "$(cat "$TMPD/list")"
+fi
 
-print_as_string_list "$@"

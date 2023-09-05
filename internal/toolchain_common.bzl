@@ -68,6 +68,9 @@ LINK_ACTIONS = [
     ACTION_NAMES.cpp_link_dynamic_library,
     ACTION_NAMES.cpp_link_nodeps_dynamic_library,
     ACTION_NAMES.cpp_link_executable,
+]
+
+STATIC_LINK_ACTIONS = [
     ACTION_NAMES.cpp_link_static_library,
 ]
 
@@ -79,7 +82,8 @@ LTO_INDEX_ACTIONS = [
     ACTION_NAMES.lto_index_for_nodeps_dynamic_library,
 ]
 
-ALL_LINK_ACTIONS = LINK_ACTIONS + LTO_INDEX_ACTIONS
+ALL_NON_STATIC_LINK_ACTIONS = LINK_ACTIONS + LTO_INDEX_ACTIONS
+ALL_LINK_ACTIONS = STATIC_LINK_ACTIONS + ALL_NON_STATIC_LINK_ACTIONS
 
 def combine_flags(set1, set2):
     """Combine two lists of flags, remove duplicates from 2nd.
@@ -152,11 +156,11 @@ def default_flagsets(ctx):
         make_flagset(ALL_COMPILE_ACTIONS, benchmark_comp_flags, ["benchmark"]),
         make_flagset(ALL_COMPILE_ACTIONS, coverage_comp_flags, ["coverage"]),
         # Linker
-        make_flagset(ALL_LINK_ACTIONS, base_link_flags),
-        make_flagset(ALL_LINK_ACTIONS, dbg_link_flags, ["dbg"]),
-        make_flagset(ALL_LINK_ACTIONS, opt_link_flags, ["opt"]),
-        make_flagset(ALL_LINK_ACTIONS, coverage_link_flags, ["coverage"]),
-        make_flagset(ALL_LINK_ACTIONS, benchmark_link_flags, ["benchmark"]),
+        make_flagset(ALL_NON_STATIC_LINK_ACTIONS, base_link_flags),
+        make_flagset(ALL_NON_STATIC_LINK_ACTIONS, dbg_link_flags, ["dbg"]),
+        make_flagset(ALL_NON_STATIC_LINK_ACTIONS, opt_link_flags, ["opt"]),
+        make_flagset(ALL_NON_STATIC_LINK_ACTIONS, coverage_link_flags, ["coverage"]),
+        make_flagset(ALL_NON_STATIC_LINK_ACTIONS, benchmark_link_flags, ["benchmark"]),
     ]
 
     return [x for x in flagsets if x]  # Filter out 'None' flagsets
@@ -199,7 +203,7 @@ def stdcxx_flags(ctx):
         )
     return [
         flag_set(
-            actions = ALL_LINK_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = ([flag_group(flags = link_flags)]),
             with_features = [with_feature_set(features = [], not_features = ["libcxx"])],
         ),
@@ -236,7 +240,7 @@ def libcxx_flags(ctx):
             with_features = [with_feature_set(features = [], not_features = ["stdcxx"])],
         ),
         flag_set(
-            actions = ALL_LINK_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = [
                 flag_group(
                     flags = (["-nostdlib++"] if ctx.attr.compiler == "clang" else []) + [
@@ -277,7 +281,7 @@ def asan_flags(ctx):
             )]),
         ),
         flag_set(
-            actions = ALL_LINK_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = ([flag_group(
                 flags = (["-static-libasan"] if is_gcc else []) + [
                     "-fsanitize=address",
@@ -321,7 +325,7 @@ def usan_flags(ctx):
             )]),
         ),
         flag_set(
-            actions = ALL_LINK_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = ([flag_group(
                 flags = ["-fsanitize=undefined"] +
                         (["-static-libubsan"] if is_gcc else ["-lubsan"]),  # clang
@@ -396,7 +400,7 @@ def lto_flags(ctx):
             ])]),
         ),
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = ([flag_group(flags = [
                 "-flto",
                 "-fuse-linker-plugin",
@@ -409,7 +413,7 @@ def lto_flags(ctx):
             flag_groups = ([flag_group(flags = ["-flto=thin"])]),
         ),
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = ([flag_group(flags = ["-flto=thin"])]),
         ),
     ]
@@ -501,7 +505,7 @@ def no_canonical_system_headers_flags(ctx):
 def runtime_library_search_flags(ctx):
     return [
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = [
                 flag_group(
                     iterate_over = "runtime_library_search_directories",
@@ -528,7 +532,7 @@ def runtime_library_search_flags(ctx):
             ],
         ),
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = [
                 flag_group(
                     iterate_over = "runtime_library_search_directories",
@@ -575,7 +579,7 @@ def llvm_coverage_map_format_flags(ctx):
             ],
         ),
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS + [
+            actions = ALL_NON_STATIC_LINK_ACTIONS + [
                 "objc-executable",
                 "objc++-executable",
             ],
@@ -614,7 +618,7 @@ def gcc_coverage_map_format_flags(ctx):
             ],
         ),
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = [flag_group(flags = ["--coverage"])],
         ),
     ]
@@ -637,7 +641,7 @@ def coverage_flags(ctx):
             ] if ctx.attr.coverage_compile_flags else []),
         ),
         flag_set(
-            actions = ALL_LINK_ACTIONS + LTO_INDEX_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = ([
                 flag_group(flags = ctx.attr.coverage_link_flags),
             ] if ctx.attr.coverage_link_flags else []),
@@ -648,7 +652,7 @@ def coverage_flags(ctx):
 def strip_debug_symbols_flags(ctx):
     return [
         flag_set(
-            actions = ALL_LINK_ACTIONS,
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = [
                 flag_group(
                     flags = ["-Wl,-S"],
@@ -894,8 +898,8 @@ ToolPathsAndFeaturesInfo = provider(
     "z",
     fields = {
         "tool_paths": "info",
-        "features": "info"
-    }
+        "features": "info",
+    },
 )
 
 # buildifier: disable=function-docstring
@@ -921,7 +925,7 @@ def _impl(ctx):
         ),
         ToolPathsAndFeaturesInfo(
             tool_paths = tool_paths,
-            features = features
+            features = features,
         ),
     ]
 

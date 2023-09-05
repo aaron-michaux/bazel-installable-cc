@@ -261,7 +261,7 @@ def download_and_extract_one(
     ret = repo_ctx.execute(extract_cmd)
     if ret.return_code != 0:
         warn(repo_ctx, "failed to extract tarball, file: {}, exitcode: {}, stderr: {}".format(cache_file, ret.return_code, ret.stderr))
-        return False 
+        return False
 
     if not repo_ctx.path(install_dir).exists:
         warn(repo_ctx, "tarball extract but expected install-directory did not appear, file: {}, install-dir: {}".format(cache_file, install_dir))
@@ -314,7 +314,9 @@ def download_and_extract(
 
 # ----------------------------------------------------- initialization repo-rule
 
-def _initialization_impl(repo_ctx):   
+def _initialization_impl(repo_ctx):
+    compiler_env = repo_ctx.os.environ.get("compiler", "host")
+
     # Basic environment
     home_dir = repo_ctx.os.environ.get("HOME")
     if not home_dir:
@@ -326,7 +328,7 @@ def _initialization_impl(repo_ctx):
     host_machine = get_host_machine(repo_ctx)
 
     # Determine the toolchain
-    use_host_toolchain = repo_ctx.os.environ.get("compiler", "host") == "host"
+    use_host_toolchain = (compiler_env == "host")
     toolchain_directory = ""
     if use_host_toolchain:
         # These values are necessary to configure the host toolchain
@@ -347,11 +349,10 @@ def _initialization_impl(repo_ctx):
 
         toolchain_directory = get_install_directory(toolchain_install_prefix, archive_name)
         info(repo_ctx, "selecting compiler: {}".format(repo_ctx.path(toolchain_directory).basename))
-        
+
     # Copy in :toolchain_common.bzl
     repo_ctx.file("toolchain_common.bzl", content = repo_ctx.read(Label("//internal:toolchain_common.bzl")), executable = False)
 
-    
     repo_ctx.file("defs.bzl", content = repo_ctx.read(Label("//internal:defs.bzl")), executable = False)
     repo_ctx.file("common.bzl", content = repo_ctx.read(Label("//internal:common.bzl")), executable = False)
     repo_ctx.file("clang_tidy.bzl", content = repo_ctx.read(Label("//internal:clang_tidy.bzl")), executable = False)
