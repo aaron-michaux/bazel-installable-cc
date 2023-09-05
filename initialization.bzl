@@ -26,7 +26,7 @@ def warn(repo_ctx, message):
 
 def there_will_be_only_once(repo_ctx):
     """Bazel seems to execute this rule multiple times unless you slow it down"""
-    repo_ctx.execute(["sleep", "0.01"], quiet = False)
+    repo_ctx.execute(["sleep", "0.1"], quiet = False)
 
 # ----------------------------------------------------------------- bash helpers
 

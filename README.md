@@ -25,13 +25,7 @@ Furthermore, I wanted to do this project to learn something about bazel.
 ## Notes:
 
 The `standalone` spawn strategy is required for `buildifier_fix` and `format_fix` to work.
-
- * bazel build --config static_analysis :static_analysis
- * bazel build //:buildifier_check
- * bazel build //:format_check
- * bazel build --spawn_strategy=standalone //:buildifier_fix
- * bazel build --spawn_strategy=standalone //:format_fix
- * bazel build :refresh_compile_commands
+See `makefile` for examples of how to piece everything together
 
 ## TODOs
 

@@ -15,32 +15,32 @@ OUTPUT_BASE:=$(HOME)/.cache/bazel/_bazel_$(USER)/$(PROJECT_NAME)
 
 debug:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel build --config=debug //example/...
+	bazel --output_base=$(OUTPUT_BASE)/debug build --config=debug //example/...
 	@$(RECIPETAIL)
 
 release:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel build --config=release //example/...
+	bazel --output_base=$(OUTPUT_BASE)/release build --config=release //example/...
 	@$(RECIPETAIL)
 
 asan:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel build --config=asan //example/...
+	bazel --output_base=$(OUTPUT_BASE)/asan build --config=asan //example/...
 	@$(RECIPETAIL)
 
 ubsan:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel build --config=ubsan //example/...
+	bazel --output_base=$(OUTPUT_BASE)/ubsan build --config=ubsan //example/...
 	@$(RECIPETAIL)
 
 tsan:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel build --config=tsan //example/...
+	bazel --output_base=$(OUTPUT_BASE)/tsan build --config=tsan //example/...
 	@$(RECIPETAIL)
 
 compile_commands:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	#	bin/generate_compile_commands.sh --config=compdb //example/...
+	tools/target_lists/refresh.sh
 	bazel --output_base=$(OUTPUT_BASE)/tool build --config=compdb :compile_commands
 	rm -f compile_commands.json
 	ln -s bazel-bin/compile_commands.json compile_commands.json
@@ -48,7 +48,7 @@ compile_commands:
 
 static_analysis:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel build --config=static_analysis :static_analysis
+	bazel --output_base=$(OUTPUT_BASE)/tool build --config=static_analysis :static_analysis
 	@$(RECIPETAIL)
 
 format_check:
