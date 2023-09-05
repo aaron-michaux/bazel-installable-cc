@@ -40,7 +40,10 @@ tsan:
 
 compile_commands:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bin/generate_compile_commands.sh --config=compdb //example/...
+	#	bin/generate_compile_commands.sh --config=compdb //example/...
+	bazel --output_base=$(OUTPUT_BASE)/tool build --config=compdb :compile_commands
+	rm -f compile_commands.json
+	ln -s bazel-bin/compile_commands.json compile_commands.json
 	@$(RECIPETAIL)
 
 static_analysis:
@@ -51,14 +54,14 @@ static_analysis:
 format_check:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
 	tools/target_lists/refresh.sh
-	bazel --output_base=$(OUTPUT_BASE)/clang_format build --config=llvm :format_check
+	bazel --output_base=$(OUTPUT_BASE)/tool build --config=llvm :format_check
 	bazel --output_base=$(OUTPUT_BASE)/buildifier run :buildifier_check
 	@$(RECIPETAIL)
 
 format_fix:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
 	tools/target_lists/refresh.sh
-	bazel --output_base=$(OUTPUT_BASE)/clang_format build --spawn_strategy=standalone --config=llvm :format_fix
+	bazel --output_base=$(OUTPUT_BASE)/tool build --spawn_strategy=standalone --config=llvm :format_fix
 	bazel --output_base=$(OUTPUT_BASE)/buildifier run --spawn_strategy=standalone :buildifier_fix
 	bazel --output_base=$(OUTPUT_BASE)/buildifier run --spawn_strategy=standalone :buildifier_check
 	@$(RECIPETAIL)
