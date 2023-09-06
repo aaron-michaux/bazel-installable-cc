@@ -4,24 +4,26 @@ TBD
 
 # -------------------------------------------------------------- starlark helpers
 
+def make_info_warn_script(repo_ctx, filename, level, colour_id):
+    if not repo_ctx.path(filename).exists:
+        colour = "\\e[{}m".format(colour_id) if colour_id else ""
+        reset_colour = "\\e[0m" if colour_id else ""        
+        repo_ctx.file(
+            filename,
+            content = """#!/bin/bash
+printf '{}%s:{} %s\n' "{}" "$*"
+""".format(colour, reset_colour, level),
+            executable = True,
+        )    
+
 def info(repo_ctx, message):
     """Outputs an info message."""
-    if not repo_ctx.path("info.sh").exists:
-        repo_ctx.file(
-            "info.sh",
-            content = "#!/bin/bash\necho -e \\\\e[32mINFO:\\\\e[0m \"$@\"",
-            executable = True,
-        )
+    make_info_warn_script(repo_ctx, "info.sh", "INFO", "32")
     repo_ctx.execute(["./info.sh", message], quiet = False)
 
 def warn(repo_ctx, message):
     """Outputs a warning message."""
-    if not repo_ctx.path("warn.sh").exists:
-        repo_ctx.file(
-            "warn.sh",
-            content = "#!/bin/bash\necho -e \\\\e[33mWARN:\\\\e[0m \"$@\"",
-            executable = True,
-        )
+    make_info_warn_script(repo_ctx, "warn.sh", "WARN", "33")
     repo_ctx.execute(["./warn.sh", message], quiet = False)
 
 def there_will_be_only_once(repo_ctx):
@@ -41,10 +43,10 @@ def get_host_machine(repo_ctx):
 def is_inc_dir(repo_ctx, line):
     return len(line) > 0 and line[0] == "/" and repo_ctx.path(line).exists
 
-def get_host_cxx_inc_dirs(repo_ctx):
+def get_compiler_inc_dirs(repo_ctx, compiler):
     repo_ctx.file(
         "sys_inc_dirs.sh",
-        content = "echo '' | cc -E -v -xc++ -",
+        content = "echo '' | {} -E -v -xc++ -".format(compiler),
         executable = True,
     )
     host_inc_dirs_flat = repo_ctx.execute(["./sys_inc_dirs.sh"])
@@ -53,6 +55,9 @@ def get_host_cxx_inc_dirs(repo_ctx):
     inc_dirs = [x for x in lines if is_inc_dir(repo_ctx, x)]
     return inc_dirs
 
+def get_host_cxx_inc_dirs(repo_ctx):
+    return get_compiler_inc_dirs(repo_ctx, "cc")
+    
 def get_os_value(repo_ctx):
     # Is there an override value?
     override_value = repo_ctx.os.environ.get("override-operating-system", None)
@@ -129,7 +134,7 @@ def parse_manifest(text):
     items = [parse_manifest_line(x) for x in text.split("\n")]
     return [x for x in items if x]
 
-def determine_toolchain(repo_ctx):
+def determine_toolchain_linux(repo_ctx):
     toolchain = repo_ctx.os.environ.get("compiler")
     os = get_os_value(repo_ctx)
     cpu = get_cpu_value(repo_ctx)
@@ -165,6 +170,46 @@ def determine_toolchain(repo_ctx):
 
     archivename, toolname, _, _, _, hash = filtered[0]
     return archivename, toolname, hash
+
+def determine_toolchain_darwin(repo_ctx):
+    toolchain = repo_ctx.os.environ.get("compiler")
+    os = get_os_value(repo_ctx)
+    cpu = get_cpu_value(repo_ctx)
+
+    # Always get toolchains via brew, gcc/clang, major versions only
+    toolchain_parts = toolchain.split("-")
+    if len(toolchain_parts) <= 1:
+        fail("Could not determine major version in toolchain: {}".format(toolchain))
+    product = toolchain_parts[0]
+    major_version = toolchain_parts[1].split(".")[0]
+    if product not in ["gcc", "llvm"]:
+        fail("Only supports gcc/llvm on macox, toolchain: {}".format(toolchain))    
+
+    # About the tool
+    toolname = ("gcc-" + major_version) if (product == "gcc") else "clang"
+    brew_package = "{}@{}".format(product, major_version)
+
+    # This *should* be the path to the tool
+    install_dir = "/opt/homebrew/opt/{}".format(brew_package)
+    toolpath = "{}/bin/{}".format(install_dir, toolname)
+    if repo_ctx.path(toolpath).exists:
+        return install_dir, toolpath, brew_package # We're good
+        
+    # This is the brew package
+    repo_ctx.file(
+        "brew_check_and_install.sh",
+        executable = True,
+        content = """#!/bin/bash
+brew install $1
+""")        
+    
+    info(repo_ctx, "Checking brew installation for package: {}".format(brew_package))
+    repo_ctx.execute(["./brew_check_and_install.sh", brew_package], quiet = False)
+
+    if not repo_ctx.path(toolpath).exists:
+        fail("Still could not find tool after installation, package: {}, path: {}".format(brew_package, toolpath))
+
+    return install_dir, toolpath, brew_package
 
 # --------------------------------------------------------- download and extract
 
@@ -318,16 +363,28 @@ def download_and_extract(
 
 # ----------------------------------------------------- initialization repo-rule
 
-def _initialization_impl(repo_ctx):
-    compiler_env = repo_ctx.os.environ.get("compiler", "host")
+def get_bazel_cache_dir(repo_ctx):
+    os = get_os_value(repo_ctx)
+    if os == "linux":
+        home_dir = repo_ctx.os.environ.get("HOME")
+        if not home_dir:
+            fail("failed to determine HOME environment variable")
+        return home_dir.strip() + "/.cache/bazel"
+    elif os == "darwin":
+        return "/private/var/tmp"
+    fail("unrecognized os: '{}'".format(os))
 
+def _initialization_impl(repo_ctx):
     there_will_be_only_once(repo_ctx)
+    compiler_env = repo_ctx.os.environ.get("compiler", "host")
+    os = get_os_value(repo_ctx)
+    if os not in ["linux", "darwin"]:
+        fail("Only supports linux/darwin, os: {}".format(os))
+    is_linux = (os == "linux")
+    is_darwin = (os == "darwin")
 
     # Basic environment
-    home_dir = repo_ctx.os.environ.get("HOME")
-    if not home_dir:
-        fail("failed to determine HOME environment variable")
-    bazel_cache_dir = home_dir.strip() + "/.cache/bazel"
+    bazel_cache_dir = get_bazel_cache_dir(repo_ctx)
     toolchain_install_prefix = bazel_cache_dir + "/toolchains"
     download_cache_dir = bazel_cache_dir + "/toolchains/downloads"
     host_cxx_inc_dirs = get_host_cxx_inc_dirs(repo_ctx)
@@ -340,8 +397,8 @@ def _initialization_impl(repo_ctx):
         # These values are necessary to configure the host toolchain
         toolchain_directory = "/usr"
         info(repo_ctx, "selecting host compiler")
-    else:
-        archive_name, toolname, hash = determine_toolchain(repo_ctx)
+    elif is_linux:
+        archive_name, toolname, hash = determine_toolchain_linux(repo_ctx)
 
         # Download and install the toolchain
         download_and_extract(
@@ -355,15 +412,22 @@ def _initialization_impl(repo_ctx):
 
         toolchain_directory = get_install_directory(toolchain_install_prefix, archive_name)
         info(repo_ctx, "selecting compiler: {}".format(repo_ctx.path(toolchain_directory).basename))
+    elif is_darwin:
+        # This determines the toolname, and installs it (using brew) is necessary
+        toolchain_directory, tool_path, toolchain_version = determine_toolchain_darwin(repo_ctx)
+
+        # Override the installation directories for this compiler
+        host_cxx_inc_dirs = get_compiler_inc_dirs(repo_ctx, tool_path)
+        
+        info(repo_ctx, "selecting compiler: {}".format(toolchain_version))
 
     # Copy in :toolchain_common.bzl
-    repo_ctx.file("toolchain_common.bzl", content = repo_ctx.read(Label("//internal:toolchain_common.bzl")), executable = False)
-
-    repo_ctx.file("defs.bzl", content = repo_ctx.read(Label("//internal:defs.bzl")), executable = False)
-    repo_ctx.file("common.bzl", content = repo_ctx.read(Label("//internal:common.bzl")), executable = False)
-    repo_ctx.file("clang_tidy.bzl", content = repo_ctx.read(Label("//internal:clang_tidy.bzl")), executable = False)
     repo_ctx.file("clang_format.bzl", content = repo_ctx.read(Label("//internal:clang_format.bzl")), executable = False)
+    repo_ctx.file("clang_tidy.bzl", content = repo_ctx.read(Label("//internal:clang_tidy.bzl")), executable = False)
+    repo_ctx.file("common.bzl", content = repo_ctx.read(Label("//internal:common.bzl")), executable = False)
     repo_ctx.file("compile_commands.bzl", content = repo_ctx.read(Label("//internal:compile_commands.bzl")), executable = False)
+    repo_ctx.file("defs.bzl", content = repo_ctx.read(Label("//internal:defs.bzl")), executable = False)
+    repo_ctx.file("toolchain_common.bzl", content = repo_ctx.read(Label("//internal:toolchain_common.bzl")), executable = False)
 
     # Set up the BUILD template
     flags = repo_ctx.attr.toolchain_flags if repo_ctx.attr.toolchain_flags else []
@@ -373,6 +437,7 @@ def _initialization_impl(repo_ctx):
         "%{host_cxx_builtin_dirs}": repr(host_cxx_inc_dirs),
         "%{use_host_compiler}": repr(use_host_toolchain),
         "%{toolchain_flags}": repr(flags),
+        "%{os}": repr(os),
     }
 
     # Create the BUILD file

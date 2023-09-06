@@ -784,6 +784,9 @@ def make_base_features(ctx):
     if has_lld_linker and has_gold_linker:
         fail("ERROR: Cannot specify both the 'lld' and 'gold' linkers at once!")
 
+    is_darwin = ctx.attr.architecture.find("darwin") >= 0
+    supports_start_end_lib = not (is_darwin and ctx.attr.compiler == "gcc")
+    
     return [
         feature(name = "defaults", enabled = True, flag_sets = default_flagsets(ctx)),
     ] + make_c_cxx_standards_features(ctx) + [
@@ -829,7 +832,7 @@ def make_base_features(ctx):
         feature(name = "archiver_flags", flag_sets = archiver_flags(ctx)),
         feature(name = "shared_flag", flag_sets = shared_flags(ctx)),
         feature(name = "lto", enabled = False, flag_sets = lto_flags(ctx), implies = ["toolchain_linker"]),
-        feature(name = "supports_start_end_lib", enabled = True),
+        feature(name = "supports_start_end_lib", enabled = supports_start_end_lib),
         feature(
             # Add rpaths to binary
             name = "runtime_library_search_directories_feature",
@@ -935,24 +938,16 @@ COMMON_ATTRIBUTES = {
     "link_libs": attr.string_list(),
 }
 
-ToolPathsAndFeaturesInfo = provider(
-    "z",
-    fields = {
-        "tool_paths": "info",
-        "features": "info",
-    },
-)
-
 # buildifier: disable=function-docstring
 def _impl(ctx):
     tool_paths = calculate_toolchain_paths(ctx)
     extra_inc_dirs = ctx.attr.extra_include_directories if ctx.attr.extra_include_directories else []
     build_inc_dirs = ctx.attr.cxx_builtin_include_directories + extra_inc_dirs
-    features = make_base_features(ctx)
+    features = make_base_features(ctx)    
     return [
         cc_common.create_cc_toolchain_config_info(
             ctx = ctx,
-            target_cpu = ctx.attr.cpu,  # "linux_x86_64",
+            target_cpu = ctx.attr.cpu,
             compiler = ctx.attr.compiler,
             toolchain_identifier = ctx.attr.toolchain_identifier,
             host_system_name = ctx.attr.host_system_name,
@@ -964,16 +959,12 @@ def _impl(ctx):
             features = features,
             cxx_builtin_include_directories = build_inc_dirs,
         ),
-        ToolPathsAndFeaturesInfo(
-            tool_paths = tool_paths,
-            features = features,
-        ),
     ]
 
 unix_toolchain_config = rule(
     implementation = _impl,
     attrs = COMMON_ATTRIBUTES,
-    provides = [DefaultInfo, CcToolchainConfigInfo, ToolPathsAndFeaturesInfo],
+    provides = [DefaultInfo, CcToolchainConfigInfo],
 )
 
 #
@@ -1131,7 +1122,7 @@ def make_toolchain_config(
 
     unix_toolchain_config(**final_kargs)
 
-def make_toolchain(name, toolchain_config):
+def make_toolchain(name, toolchain_config, host_platform, target_platform):
     cc_toolchain(
         name = name + "_cc_toolchain",
         all_files = ":compiler_deps",
@@ -1146,25 +1137,20 @@ def make_toolchain(name, toolchain_config):
 
     native.toolchain(
         name = name,
-        exec_compatible_with = [
-            "@platforms//os:linux",
-            "@platforms//cpu:x86_64",
-        ],
-        target_compatible_with = [
-            "@platforms//os:linux",
-            "@platforms//cpu:x86_64",
-        ],
+        exec_compatible_with = host_platform,
+        target_compatible_with = target_platform,
         toolchain = ":" + name + "_cc_toolchain",
         toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
     )
 
 def make_toolchain_from_install_root(
-        name,
-        install_root,
-        additional_args,
-        sys_machine,
-        host_cxx_builtin_dirs,
-        is_host_compiler):
+    name,
+    install_root,
+    additional_args,
+    sys_machine,
+    host_cxx_builtin_dirs,
+    is_host_compiler,
+    operating_system):
     """Logic to deduce toolchain parameters from install_root only.
 
     Args:
@@ -1174,11 +1160,15 @@ def make_toolchain_from_install_root(
       sys_machine: The output of `gcc -machinedump`
       host_cxx_builtin_dirs: Sandbox breaking include directories necessary for host compiler (only).
       is_host_compiler: True if setting up the host compiler.
+      operating_system: Should be "linux" or "darwin"
     """
     label = name
     config_label = label + "_config"
     version = None
 
+    if operating_system not in ["linux", "darwin"]:
+        fail("Expected 'os' to be linux/darwin, os: {}".format(operating_system))
+    
     if is_host_compiler:
         make_toolchain_config(
             name = config_label,
@@ -1189,18 +1179,34 @@ def make_toolchain_from_install_root(
             cxx_builtin_include_directories = host_cxx_builtin_dirs,
         )
     else:
-        basename = install_root.split("/")[-1]
+        install_root_parts = install_root.split("/")
+        basename = install_root_parts[-1]
         is_gcc = basename.startswith("gcc")
-        parts = basename.split("-")
-        is_clang = (parts[0] == "llvm")
-        is_gcc = parts[0] == "gcc"
-        if len(parts) < 2 or (not is_clang and not is_gcc):
+        is_clang = basename.startswith("llvm") or basename.startswith("clang")
+        if not is_clang and not is_gcc:
             fail("ERROR: could not deduce clang/gcc from install_root: {}".format(install_root))
-        version = parts[1]
+
+        # Compiler version
+        parts = basename.split("-") if (operating_system == "linux") else basename.split("@")
+        if len(parts) > 1:
+            version = parts[1]
+        if not version:
+            fail("ERROR: could not deduce clang/gcc version from install_root: {}".format(install_root))
         major_version = version.split(".")[0]
-        architecture = "x86_64-pc-linux-gnu" if is_gcc else "x86_64-unknown-linux-gnu"
         suffix = ("-" + major_version) if is_gcc else ""
+
+        # Architecture, suffix, and cxx_builtin_include_dirs is done differently
+        # for brew/macos
+        architecture = None
+        cxx_builtin_include_directories = None
+        if operating_system == "linux":
+            architecture = "x86_64-pc-linux-gnu" if is_gcc else "x86_64-unknown-linux-gnu"
+        else:
+            architecture = sys_machine
+            version = major_version
+            cxx_builtin_include_directories = host_cxx_builtin_dirs
         config_label = label + "_config"
+        
         make_toolchain_config(
             name = config_label,
             compiler = "gcc" if is_gcc else "clang",
@@ -1209,11 +1215,20 @@ def make_toolchain_from_install_root(
             architecture = architecture,
             suffix = suffix,
             additional_args = additional_args,
+            cxx_builtin_include_directories = cxx_builtin_include_directories,
         )
+
+    host_platform = [
+        "@platforms//os:" + ("linux" if operating_system == "linux" else "osx"),
+        "@platforms//cpu:"+ (sys_machine.split("-")[0]),
+    ]
+    target_platform = host_platform
 
     make_toolchain(
         name = label,
         toolchain_config = ":" + config_label,
+        host_platform = host_platform,
+        target_platform = target_platform,
     )
 
 # -- binary alias

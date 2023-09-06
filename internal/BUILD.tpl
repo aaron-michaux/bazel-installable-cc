@@ -22,8 +22,9 @@ make_toolchain_from_install_root(
     install_root = TOOLCHAIN_DIRECTORY,
     additional_args = TOOLCHAIN_FLAGS,
     sys_machine = SYS_MACHINE,
-    host_cxx_builtin_dirs = HOST_CXX_BUILTIN_DIRS,
+    host_cxx_builtin_dirs = HOST_CXX_BUILTIN_DIRS, # Use for MacOS (brew), or host compilers
     is_host_compiler = USE_HOST_COMPILER,
+    operating_system = %{os},
 )
 
 alias(
