@@ -744,7 +744,8 @@ def make_base_features(ctx):
     if has_lld_linker and has_gold_linker:
         fail("ERROR: Cannot specify both the 'lld' and 'gold' linkers at once!")
 
-    is_brew = ctx.attr.architecture.find("darwin") >= 0    
+    is_darwin = ctx.attr.architecture.find("darwin") >= 0
+    supports_start_end_lib = not (is_darwin and ctx.attr.compiler == "gcc")
     
     return [
         feature(name = "defaults", enabled = True, flag_sets = default_flagsets(ctx)),
@@ -790,7 +791,7 @@ def make_base_features(ctx):
         # Extra linker flags
         feature(name = "shared_flag", flag_sets = shared_flags(ctx)),
         feature(name = "lto", enabled = False, flag_sets = lto_flags(ctx), implies = ["toolchain_linker"]),
-        feature(name = "supports_start_end_lib", enabled = not is_brew),
+        feature(name = "supports_start_end_lib", enabled = supports_start_end_lib),
         feature(
             # Add rpaths to binary
             name = "runtime_library_search_directories_feature",
