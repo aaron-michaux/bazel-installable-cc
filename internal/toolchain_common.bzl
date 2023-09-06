@@ -480,6 +480,46 @@ def shared_flags(ctx):
         ),
     ]
 
+def archiver_flags(ctx):
+    return [
+        flag_set(
+            actions = [ACTION_NAMES.cpp_link_static_library],
+            flag_groups = [
+                flag_group(flags = ["rcsD"]),
+                flag_group(
+                    flags = ["%{output_execpath}"],
+                    expand_if_available = "output_execpath",
+                ),
+            ],
+        ),
+        flag_set(
+            actions = [ACTION_NAMES.cpp_link_static_library],
+            flag_groups = [
+                flag_group(
+                    iterate_over = "libraries_to_link",
+                    flag_groups = [
+                        flag_group(
+                            flags = ["%{libraries_to_link.name}"],
+                            expand_if_equal = variable_with_value(
+                                name = "libraries_to_link.type",
+                                value = "object_file",
+                            ),
+                        ),
+                        flag_group(
+                            flags = ["%{libraries_to_link.object_files}"],
+                            iterate_over = "libraries_to_link.object_files",
+                            expand_if_equal = variable_with_value(
+                                name = "libraries_to_link.type",
+                                value = "object_file_group",
+                            ),
+                        ),
+                    ],
+                    expand_if_available = "libraries_to_link",
+                ),
+            ],
+        ),
+    ]
+
 def no_canonical_system_headers_flags(ctx):
     """
     The flag-set for '-fno-canonical-system-headers' in gcc only; no effect calling with clang.
@@ -786,6 +826,7 @@ def make_base_features(ctx):
         feature(name = "toolchain_linker", enabled = True, flag_sets = toolchain_linker_flags(ctx)),
 
         # Extra linker flags
+        feature(name = "archiver_flags", flag_sets = archiver_flags(ctx)),
         feature(name = "shared_flag", flag_sets = shared_flags(ctx)),
         feature(name = "lto", enabled = False, flag_sets = lto_flags(ctx), implies = ["toolchain_linker"]),
         feature(name = "supports_start_end_lib", enabled = True),
