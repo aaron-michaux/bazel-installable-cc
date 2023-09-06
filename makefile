@@ -12,36 +12,37 @@ RECIPETAIL:=echo
 
 PROJECT_NAME:=example
 OUTPUT_BASE:=$(HOME)/.cache/bazel/_bazel_$(USER)/$(PROJECT_NAME)
+COMPILER:=--config=gcc13
 
 debug:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/debug build --config=debug //example/...
+	bazel --output_base=$(OUTPUT_BASE)/debug build $(COMPILER) --config=debug //example/...
 	@$(RECIPETAIL)
 
 release:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/release build --config=release //example/...
+	bazel --output_base=$(OUTPUT_BASE)/release build $(COMPILER) --config=release //example/...
 	@$(RECIPETAIL)
 
 asan:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/asan build --config=asan //example/...
+	bazel --output_base=$(OUTPUT_BASE)/asan build $(COMPILER) --config=asan //example/...
 	@$(RECIPETAIL)
 
 ubsan:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/ubsan build --config=ubsan //example/...
+	bazel --output_base=$(OUTPUT_BASE)/ubsan build $(COMPILER) --config=ubsan //example/...
 	@$(RECIPETAIL)
 
 tsan:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/tsan build --config=tsan //example/...
+	bazel --output_base=$(OUTPUT_BASE)/tsan build $(COMPILER) --config=tsan //example/...
 	@$(RECIPETAIL)
 
 compile_commands:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
 	tools/target_lists/refresh.sh
-	bazel --output_base=$(OUTPUT_BASE)/tool build --config=compdb :compile_commands
+	bazel --output_base=$(OUTPUT_BASE)/tool --config=compdb :compile_commands
 	rm -f compile_commands.json
 	ln -s bazel-bin/compile_commands.json compile_commands.json
 	@$(RECIPETAIL)

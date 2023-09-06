@@ -26,10 +26,10 @@ def warn(repo_ctx, message):
     make_info_warn_script(repo_ctx, "warn.sh", "WARN", "33")
     repo_ctx.execute(["./warn.sh", message], quiet = False)
 
-def there_will_be_only_once(repo_ctx):
-    """Bazel seems to execute this rule multiple times unless you slow it down"""
-    repo_ctx.execute(["sleep", "0.1"], quiet = False)
-
+def ensure_directory_exists(repo_ctx, directory):
+    """mkdir -p directory"""
+    repo_ctx.execute(["mkdir", "-p", directory])
+    
 # ----------------------------------------------------------------- bash helpers
 
 def bash_quote(s):
@@ -88,16 +88,10 @@ def get_cpu_value(repo_ctx):
 
 def get_default_vendor(repo_ctx):
     if get_os_value(repo_ctx) != "linux":
-        return ""
+        return ""    
     repo_ctx.file(
         "determine_linux_vendor.sh",
-        content = """#!/bin/bash
-if [ -x "/usr/bin/lsb_release" ] ; then    
-    /usr/bin/lsb_release -a 2>/dev/null | grep Codename | awk '{ print $2 }' | tr '[:upper:]' '[:lower:]'
-elif [ -f /etc/os-release ] && cat /etc/os-release | grep -qi Oracle  ; then
-    ol$(cat /etc/os-release | grep -E ^VERSION= | awk -F= '{ print $2 }' | sed 's,",,g')
-fi
-""",
+        content = repo_ctx.read(Label("//bin:platform.sh")) + "\necho ${VENDOR_TAG}",
         executable = True,
     )
     return repo_ctx.execute(["./determine_linux_vendor.sh"]).stdout.strip()
@@ -269,7 +263,7 @@ def download_one(repo_ctx, url, archive_name, expected_hash, cache_file):
     cmd.append(full_url)
     ret = repo_ctx.execute(cmd)
     if ret.return_code != 0:
-        info(repo_ctx, "download failed, url: {}, exitcode: {}"
+        warn(repo_ctx, "download failed, url: {}, exitcode: {}"
             .format(full_url, ret.return_code))
         return False  # We can ignore this error, download will try again
 
@@ -293,7 +287,9 @@ def download_and_extract_one(
     if is_extracted(repo_ctx, archive_name, expected_hash, destination_dir):
         return True
 
+    # Attempt to download the file
     info(repo_ctx, "downloading url: {}".format("{}/{}".format(url, archive_name)))
+    ensure_directory_exists(repo_ctx, download_cache_dir)
     cache_file = "{}/{}".format(download_cache_dir, archive_name)
     if not download_one(repo_ctx, url, archive_name, expected_hash, cache_file):
         return False  # we'll try another url

@@ -18,7 +18,7 @@ build --remote_local_fallback   # Fallback to a local build if remote fails
 
 # -- Compiler
 # The vendor can be auto-selected or manually specified
-#build         --repo_env=compiler-vendor=ubuntu-jammy
+# build         --repo_env=compiler-vendor=ubuntu-jammy
 build:gcc     --repo_env=compiler=host
 build:llvm    --repo_env=compiler=llvm-16.0.6
 build:clang   --config=llvm
