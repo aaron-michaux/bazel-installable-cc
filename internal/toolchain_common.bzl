@@ -793,7 +793,7 @@ def make_base_features(ctx):
     is_darwin = ctx.attr.architecture.find("darwin") >= 0
     is_darwin_gcc = is_darwin and ctx.attr.compiler == "gcc"
     supports_start_end_lib = not is_darwin_gcc
-    
+
     return [
         feature(name = "defaults", enabled = True, flag_sets = default_flagsets(ctx)),
     ] + make_c_cxx_standards_features(ctx) + [
@@ -950,7 +950,7 @@ def _impl(ctx):
     tool_paths = calculate_toolchain_paths(ctx)
     extra_inc_dirs = ctx.attr.extra_include_directories if ctx.attr.extra_include_directories else []
     build_inc_dirs = ctx.attr.cxx_builtin_include_directories + extra_inc_dirs
-    features = make_base_features(ctx)    
+    features = make_base_features(ctx)
     return [
         cc_common.create_cc_toolchain_config_info(
             ctx = ctx,
@@ -1151,13 +1151,13 @@ def make_toolchain(name, toolchain_config, host_platform, target_platform):
     )
 
 def make_toolchain_from_install_root(
-    name,
-    install_root,
-    additional_args,
-    sys_machine,
-    host_cxx_builtin_dirs,
-    is_host_compiler,
-    operating_system):
+        name,
+        install_root,
+        additional_args,
+        sys_machine,
+        host_cxx_builtin_dirs,
+        is_host_compiler,
+        operating_system):
     """Logic to deduce toolchain parameters from install_root only.
 
     Args:
@@ -1175,7 +1175,7 @@ def make_toolchain_from_install_root(
 
     if operating_system not in ["linux", "darwin"]:
         fail("Expected 'os' to be linux/darwin, os: {}".format(operating_system))
-    
+
     if is_host_compiler:
         make_toolchain_config(
             name = config_label,
@@ -1213,7 +1213,7 @@ def make_toolchain_from_install_root(
             version = major_version
             cxx_builtin_include_directories = host_cxx_builtin_dirs
         config_label = label + "_config"
-        
+
         make_toolchain_config(
             name = config_label,
             compiler = "gcc" if is_gcc else "clang",
@@ -1227,7 +1227,7 @@ def make_toolchain_from_install_root(
 
     host_platform = [
         "@platforms//os:" + ("linux" if operating_system == "linux" else "osx"),
-        "@platforms//cpu:"+ (sys_machine.split("-")[0]),
+        "@platforms//cpu:" + (sys_machine.split("-")[0]),
     ]
     target_platform = host_platform
 

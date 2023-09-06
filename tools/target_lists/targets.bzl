@@ -5,14 +5,10 @@ whenever a new target may have been added. To ensure that these tools always wor
 as expected, run 'refresh.sh' in the makefile before the specified tool.
 """
 
-TIDY_TARGETS = [
-    "//example/config/suppressions:all",
-    "//example/src:main",
-    "//example/src:some_lib_lib",
-]
-
 ALL_TARGETS = [
     "//example/config/suppressions:all",
     "//example/src:main",
     "//example/src:some_lib_lib",
 ]
+
+TIDY_TARGETS = ALL_TARGETS

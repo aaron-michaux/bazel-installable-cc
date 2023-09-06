@@ -1,7 +1,11 @@
+"""
+Module for generate `compile_commands.json`
+"""
+
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain")
 load(
     ":common.bzl",
-    "CcRuleInfoSet",
+    "CcRuleSetInfo",
     "append_compiler_context_flags",
     "collect_cc_actions",
     "is_c_file",
@@ -9,7 +13,7 @@ load(
 
 # -- Compile commands
 
-def gen_compile_commands_logic(ctx, compilation_context, compiler_exe, label, kind, attr, srcs, cflags, cxxflags):
+def _gen_compile_commands_logic(ctx, compilation_context, compiler_exe, label, kind, attr, srcs, cflags, cxxflags):
     def make_comp_commands(src):
         is_c = is_c_file(src)
         flags = append_compiler_context_flags(cflags if is_c else cxxflags, compilation_context)
@@ -36,18 +40,18 @@ def _compile_commands_impl(ctx):
     cc_infos = [
         (info, t[CcInfo].compilation_context)
         for t in ctx.attr.targets
-        for info in t[CcRuleInfoSet].cc_infos
+        for info in t[CcRuleSetInfo].cc_infos
     ]
 
     # Run on all cc_infos, skipping duplicates
     outputs = []
     cc_dict = {}
     for cc_info, compilation_context in cc_infos:
-        l = cc_info["label"]
-        name = "@{}//{}:{}".format(l.workspace_name, l.package, l.name)
+        label = cc_info["label"]
+        name = "@{}//{}:{}".format(label.workspace_name, label.package, label.name)
         if not name in cc_dict:
             cc_dict[name] = cc_info
-            outputs += gen_compile_commands_logic(
+            outputs += _gen_compile_commands_logic(
                 ctx,
                 compilation_context,
                 compiler_exe,

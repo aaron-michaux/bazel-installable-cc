@@ -1,3 +1,7 @@
+"""
+Module to run clang-format.
+"""
+
 load(":common.bzl", "collect_cc_dependencies")
 
 # -- Runs clang-format

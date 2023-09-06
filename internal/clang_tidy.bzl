@@ -1,6 +1,10 @@
+"""
+For running clang-tidy
+"""
+
 load(
     ":common.bzl",
-    "CcRuleInfoSet",
+    "CcRuleSetInfo",
     "append_compiler_context_flags",
     "collect_cc_actions",
     "is_c_file",
@@ -8,17 +12,17 @@ load(
 
 # -- Runs clang-tidy
 
-def calc_inputs(src, config_file, compilation_context):
+def _calc_inputs(src, config_file, compilation_context):
     return depset(
         direct = [x for x in [src, config_file] if x],
         transitive = [compilation_context.headers],
     )
 
-def llvm_filter_args(l):
+def _llvm_filter_args(flag_list):
     gcc_only_flags = ["-fno-canonical-system-headers", "-fstack-usage"]
-    return [x for x in l if x not in gcc_only_flags]
+    return [x for x in flag_list if x not in gcc_only_flags]
 
-def gen_tidy_logic(ctx, compilation_context, label, kind, attr, srcs, cflags, cxxflags):
+def _gen_tidy_logic(ctx, compilation_context, label, kind, attr, srcs, cflags, cxxflags):
     # By default, use `clang-tidy` on PATH
     tools = []
     if ctx.attr.clang_tidy:
@@ -63,7 +67,7 @@ rm -f {1} && touch {1} && {0} "$@"
         """.format(exe, outfile.path)
         ctx.actions.run_shell(
             mnemonic = "ClangTidy",
-            inputs = calc_inputs(src, config_file, compilation_context),
+            inputs = _calc_inputs(src, config_file, compilation_context),
             outputs = [outfile],
             command = command,
             arguments = [args],
@@ -77,28 +81,28 @@ def _clang_tidy_check_impl(ctx):
     cc_infos = [
         (info, t[CcInfo].compilation_context)
         for t in ctx.attr.targets
-        for info in t[CcRuleInfoSet].cc_infos
+        for info in t[CcRuleSetInfo].cc_infos
     ]
 
     # Run on all cc_infos, skipping duplicates
     outfiles = []
     cc_dict = {}
     for cc_info, compilation_context in cc_infos:
-        l = cc_info["label"]
-        name = "@{}//{}:{}".format(l.workspace_name, l.package, l.name)
+        label = cc_info["label"]
+        name = "@{}//{}:{}".format(label.workspace_name, label.package, label.name)
         if not name in cc_dict:
             cc_dict[name] = cc_info
 
             # Run clang tidy on this cc_rule
-            outfiles += gen_tidy_logic(
+            outfiles += _gen_tidy_logic(
                 ctx,
                 compilation_context,
                 cc_info["label"],
                 cc_info["kind"],
                 cc_info["attr"],
                 cc_info["srcs"],
-                llvm_filter_args(cc_info["cflags"]),
-                llvm_filter_args(cc_info["cxxflags"]),
+                _llvm_filter_args(cc_info["cflags"]),
+                _llvm_filter_args(cc_info["cxxflags"]),
             )
 
     return [DefaultInfo(files = depset(outfiles))]

@@ -1,22 +1,28 @@
+"""
+Common functions for installable toolchain helpers
+"""
+
 load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain")
 
 def is_workspace_target(target):
     return target.label.workspace_name == ""
 
-# def is_header_file(file_path):
-#     return file_path.endswith(".h") or file_path.endswith(".hpp") or file_path.endswith(".hxx")
-
 def is_c_file(file):
     return file.path.endswith(".c")
-
-# def is_cc_file(file_path):
-#     return file_path.endswith(".cc") or file_path.endswith(".cpp") or file_path.endswith(".cxx")
 
 def is_cc_rule(rule):
     return rule.kind in ["cc_binary", "cc_library", "cc_shared_library", "cc_test"]
 
 def is_valid_src_hdr_file(file):
+    """Tests if the passed file (object) is a C++ source/header
+
+    Args:
+      file: The file to test
+
+    Returns:
+      True or False =)
+    """
     file_types = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C", ".h", ".hh", ".hpp", ".hxx", ".H"]
     for type in file_types:
         if file.basename.endswith(type):
@@ -64,6 +70,15 @@ collect_cc_dependencies = aspect(
 # -- For joining compiler commands with compiler_context flags
 
 def append_compiler_context_flags(flags, compilation_context):
+    """Adds the 'compilation context' flags to a list of compile flags.
+
+    Args:
+      flags: A list of compile flags, like ["-Wall", ...]
+      compilation_context: Comes from a CcInfo providers
+
+    Returns:
+      A full list of flags, including [-D..., -isystem..., ...] from the toolchain context
+    """
     args = [x for x in flags]
     args += ["-D" + d for d in compilation_context.defines.to_list()]
     args += ["-D" + d for d in compilation_context.local_defines.to_list()]
@@ -75,14 +90,14 @@ def append_compiler_context_flags(flags, compilation_context):
 
 # -- Aspect to get everything about CC deps
 
-CcRuleInfoSet = provider(
-    "A cc build rule of some kind",
+CcRuleSetInfo = provider(
+    "Rule info for cc build rules, necessary for regenerating compiler flags",
     fields = {
         "cc_infos": "a list of structs [{'kind', 'attr'}, ...]",
     },
 )
 
-def calculate_toolchain_flags(ctx, action_name):
+def _calculate_toolchain_flags(ctx, action_name):
     cc_toolchain = find_cpp_toolchain(ctx)
     feature_configuration = cc_common.configure_features(
         ctx = ctx,
@@ -114,9 +129,9 @@ def _collect_cc_actions_impl(target, ctx):
         cxxflags = None
         for src in srcs:
             if not cflags and is_c_file(src):
-                cflags = calculate_toolchain_flags(ctx, ACTION_NAMES.c_compile)
+                cflags = _calculate_toolchain_flags(ctx, ACTION_NAMES.c_compile)
             elif not cxxflags:
-                cxxflags = calculate_toolchain_flags(ctx, ACTION_NAMES.cpp_compile)
+                cxxflags = _calculate_toolchain_flags(ctx, ACTION_NAMES.cpp_compile)
         if not cflags:
             cflags = []
         if not cxxflags:
@@ -137,9 +152,9 @@ def _collect_cc_actions_impl(target, ctx):
         }]
         if hasattr(ctx.rule.attr, "deps"):
             for dep in ctx.rule.attr.deps:
-                if CcRuleInfoSet in dep:
-                    collected += dep[CcRuleInfoSet].cc_infos
-    return [CcRuleInfoSet(cc_infos = collected)]
+                if CcRuleSetInfo in dep:
+                    collected += dep[CcRuleSetInfo].cc_infos
+    return [CcRuleSetInfo(cc_infos = collected)]
 
 collect_cc_actions = aspect(
     implementation = _collect_cc_actions_impl,
@@ -148,6 +163,6 @@ collect_cc_actions = aspect(
     attrs = {
         "_cc_toolchains": attr.label(default = Label("@bazel_tools//tools/cpp:current_cc_toolchain")),
     },
-    provides = [CcRuleInfoSet],
+    provides = [CcRuleSetInfo],
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )

@@ -6,7 +6,7 @@ THIS_SCRIPT="$([ -L "$0" ] && readlink -f "$0" || echo "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$THIS_SCRIPT")" ; pwd -P)"
 
 ALL_TARGETS="//example/..."
-TIDY_TARGETS="//example/..."
+# TIDY_TARGETS="//example/..."
 
 show_help()
 {
@@ -90,9 +90,10 @@ whenever a new target may have been added. To ensure that these tools always wor
 as expected, run 'refresh.sh' in the makefile before the specified tool.
 """
 
-TIDY_TARGETS = $(target_list $TIDY_TARGETS)
-
 ALL_TARGETS = $(target_list $ALL_TARGETS)
+
+TIDY_TARGETS = ALL_TARGETS
+
 
 EOF
 
