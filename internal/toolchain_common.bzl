@@ -480,12 +480,12 @@ def shared_flags(ctx):
         ),
     ]
 
-def archiver_flags(ctx):
+def archiver_flags(ctx, is_darwin_gcc):
     return [
         flag_set(
             actions = [ACTION_NAMES.cpp_link_static_library],
             flag_groups = [
-                flag_group(flags = ["rcsD"]),
+                flag_group(flags = ["rcs" if is_darwin_gcc else "rcsD"]),
                 flag_group(
                     flags = ["%{output_execpath}"],
                     expand_if_available = "output_execpath",
@@ -785,7 +785,8 @@ def make_base_features(ctx):
         fail("ERROR: Cannot specify both the 'lld' and 'gold' linkers at once!")
 
     is_darwin = ctx.attr.architecture.find("darwin") >= 0
-    supports_start_end_lib = not (is_darwin and ctx.attr.compiler == "gcc")
+    is_darwin_gcc = is_darwin and ctx.attr.compiler == "gcc"
+    supports_start_end_lib = not is_darwin_gcc
     
     return [
         feature(name = "defaults", enabled = True, flag_sets = default_flagsets(ctx)),
@@ -829,7 +830,7 @@ def make_base_features(ctx):
         feature(name = "toolchain_linker", enabled = True, flag_sets = toolchain_linker_flags(ctx)),
 
         # Extra linker flags
-        feature(name = "archiver_flags", flag_sets = archiver_flags(ctx)),
+        feature(name = "archiver_flags", flag_sets = archiver_flags(ctx, is_darwin_gcc)),
         feature(name = "shared_flag", flag_sets = shared_flags(ctx)),
         feature(name = "lto", enabled = False, flag_sets = lto_flags(ctx), implies = ["toolchain_linker"]),
         feature(name = "supports_start_end_lib", enabled = supports_start_end_lib),
