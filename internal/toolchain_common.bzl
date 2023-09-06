@@ -135,7 +135,7 @@ def default_flagsets(ctx):
     )
     coverage_comp_flags = combine_flags([], ctx.attr.coverage_compile_flags)
     benchmark_comp_flags = combine_flags(
-        ["-O3", "-g", "-fno-omit-frame-pointer"],
+        ["-O3", "-DNDEBUG", "-g", "-fno-omit-frame-pointer"],
         ctx.attr.benchmark_compile_flags,
     )
 

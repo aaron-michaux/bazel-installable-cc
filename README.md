@@ -29,6 +29,7 @@ See `makefile` for examples of how to piece everything together
 
 ## TODOs
 
+ * Remove all unnecessary stuff from WORKSPACE
  * A trivial testcase, with sanitizer run files work
  * Front end script (bazel aspects?? build.sh??? makefile????)
    - Front end should run under valgrind/helgrind with suppressions

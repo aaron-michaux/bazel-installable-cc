@@ -1,11 +1,13 @@
 """
-Contains ONE variable. If a single set of flags is insufficent, then
-this should be changed to a function that takes the toolchain name
-as a parameter.
+Compiler flags that are active for *all* builds, including builds of 3rd party dependencies.
+
+TEST your compiler flags using:
+
+   bazel build --subcommands //path/to:target
+
 """
 
 # A dictionary of key-value pairs that are passed to the toolchain configuration
-# TODO change TOOLCHAIN_FLAGS to generate_toolchain_flags(toolchain)
 TOOLCHAIN_FLAGS = {
     # For the feature: --features=warnings
     "warning_flags": [
@@ -33,7 +35,7 @@ TOOLCHAIN_FLAGS = {
         "-DNDEBUG",
     ],
     "benchmark_compile_flags": [
-        # Includes: ["-O3", "-g", "-fno-omit-frame-pointer"]
+        # Includes: ["-O3", "-DNDEBUG", "-g", "-fno-omit-frame-pointer"]
     ],
     "base_link_flags": [
         # Passed to all link actions
