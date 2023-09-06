@@ -12,6 +12,7 @@ load(
 )
 load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
 load("@rules_cc//cc:defs.bzl", "cc_toolchain")
+load("@rules_cc//cc:cc_toolchain_config_lib.bzl", "variable_with_value")
 
 ALL_ACTIONS = [
     # Assembler actions
@@ -479,6 +480,11 @@ def shared_flags(ctx):
             flag_groups = [flag_group(flags = ["-shared"])],
         ),
     ]
+
+VariableWithValueInfo = provider(
+    "Represents equality check between a variable and a certain value.",
+    fields = ["name", "value", "type_name"],
+)
 
 def archiver_flags(ctx, is_darwin_gcc):
     return [

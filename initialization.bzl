@@ -375,7 +375,14 @@ def get_bazel_cache_dir(repo_ctx):
     fail("unrecognized os: '{}'".format(os))
 
 def _initialization_impl(repo_ctx):
-    there_will_be_only_once(repo_ctx)
+    # Copy in :toolchain_common.bzl
+    repo_ctx.file("clang_format.bzl", content = repo_ctx.read(Label("//internal:clang_format.bzl")), executable = False)
+    repo_ctx.file("clang_tidy.bzl", content = repo_ctx.read(Label("//internal:clang_tidy.bzl")), executable = False)
+    repo_ctx.file("common.bzl", content = repo_ctx.read(Label("//internal:common.bzl")), executable = False)
+    repo_ctx.file("compile_commands.bzl", content = repo_ctx.read(Label("//internal:compile_commands.bzl")), executable = False)
+    repo_ctx.file("defs.bzl", content = repo_ctx.read(Label("//internal:defs.bzl")), executable = False)
+    repo_ctx.file("toolchain_common.bzl", content = repo_ctx.read(Label("//internal:toolchain_common.bzl")), executable = False)
+
     compiler_env = repo_ctx.os.environ.get("compiler", "host")
     os = get_os_value(repo_ctx)
     if os not in ["linux", "darwin"]:
@@ -420,14 +427,6 @@ def _initialization_impl(repo_ctx):
         host_cxx_inc_dirs = get_compiler_inc_dirs(repo_ctx, tool_path)
         
         info(repo_ctx, "selecting compiler: {}".format(toolchain_version))
-
-    # Copy in :toolchain_common.bzl
-    repo_ctx.file("clang_format.bzl", content = repo_ctx.read(Label("//internal:clang_format.bzl")), executable = False)
-    repo_ctx.file("clang_tidy.bzl", content = repo_ctx.read(Label("//internal:clang_tidy.bzl")), executable = False)
-    repo_ctx.file("common.bzl", content = repo_ctx.read(Label("//internal:common.bzl")), executable = False)
-    repo_ctx.file("compile_commands.bzl", content = repo_ctx.read(Label("//internal:compile_commands.bzl")), executable = False)
-    repo_ctx.file("defs.bzl", content = repo_ctx.read(Label("//internal:defs.bzl")), executable = False)
-    repo_ctx.file("toolchain_common.bzl", content = repo_ctx.read(Label("//internal:toolchain_common.bzl")), executable = False)
 
     # Set up the BUILD template
     flags = repo_ctx.attr.toolchain_flags if repo_ctx.attr.toolchain_flags else []
