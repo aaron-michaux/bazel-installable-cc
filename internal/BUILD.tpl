@@ -2,8 +2,7 @@
 Specifies the compiler configured through @initialize_toolchain://cc
 """
 
-# load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
-load(":toolchain_common.bzl", "make_toolchain_from_install_root", "binary_alias")
+load(":toolchain_common.bzl", "make_toolchain_from_install_root", "binary_alias", "compiler_flavor")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -30,6 +29,13 @@ make_toolchain_from_install_root(
 alias(
     name = "cc_configuration",
     actual = ":cc_config",
+)
+
+# -- Make the toolchain type (gcc/llvm) available through a config_setting
+
+compiler_flavor(
+    name = "compiler_flavor",
+    build_setting_default = %{compiler_type},
 )
 
 # -- Clang Tidy

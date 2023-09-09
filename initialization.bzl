@@ -463,6 +463,8 @@ def _initialization_impl(repo_ctx):
 
         info(repo_ctx, "selecting compiler: {}".format(toolchain_version))
 
+    is_gcc = (use_host_toolchain or toolchain_directory.find("gcc") >= 0)
+        
     # Set up the BUILD template
     flags = repo_ctx.attr.toolchain_flags if repo_ctx.attr.toolchain_flags else []
     template_substitutions = {
@@ -472,6 +474,7 @@ def _initialization_impl(repo_ctx):
         "%{use_host_compiler}": repr(use_host_toolchain),
         "%{toolchain_flags}": repr(flags),
         "%{os}": repr(os),
+        "%{compiler_type}": repr("gcc" if is_gcc else "llvm"),
     }
 
     # Create the BUILD file

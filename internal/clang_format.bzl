@@ -6,6 +6,13 @@ load(":common.bzl", "collect_cc_dependencies")
 
 # -- Runs clang-format
 
+def is_filtered(ctx, file):
+    if ctx.attr.filter:
+        for pattern in ctx.attr.filter:
+            if file.path.startswith(pattern):
+                return True
+    return False
+
 def _clang_format_check_impl(ctx):
     is_check_only = (ctx.attr.mode == "check")
     extension = ".format-check" if is_check_only else ".format-fix"
@@ -16,11 +23,16 @@ def _clang_format_check_impl(ctx):
         tools.append(ctx.executable.clang_format)
     exe = ctx.executable.clang_format.path if ctx.attr.clang_format else "clang-format"
 
-    inputs = [
-        file
+    # Collect the inputs, removing duplicates
+    unique_inputs = {
+        file: True
         for target in ctx.attr.targets
         for file in target[OutputGroupInfo]._collected_cc_deps.to_list()
-    ]
+    }
+
+    # Apply further filters
+    inputs = [file for file, _ in unique_inputs.items() if not is_filtered(ctx, file)]
+        
     outfiles = []
     for file in inputs:
         outfile = ctx.actions.declare_file(file.path + extension)
@@ -70,5 +82,6 @@ clang_format_internal = rule(
         ),
         "config_file": attr.label(mandatory = False),
         "mode": attr.string(values = ["check", "fix"], mandatory = True),
+        "filter": attr.string_list(mandatory = False),
     },
 )

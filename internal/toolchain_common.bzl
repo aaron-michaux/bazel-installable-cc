@@ -1256,3 +1256,15 @@ binary_alias = rule(
         "src": attr.string(),
     },
 )
+
+# -- compiler flavor
+
+CompilerFlavorProvider = provider(fields = ['type'])
+
+def _compiler_flavor_impl(ctx):
+    return CompilerFlavorProvider(type = ctx.build_setting_value)
+
+compiler_flavor = rule(
+    implementation = _compiler_flavor_impl,
+    build_setting = config.string(flag = True)
+)
