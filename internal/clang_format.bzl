@@ -32,7 +32,8 @@ def _clang_format_check_impl(ctx):
 
     # Apply further filters
     inputs = [file for file, _ in unique_inputs.items() if not file_is_filtered(ctx, file)]
-    
+
+    copyright = ctx.attr.copyright_check if ctx.attr.copyright_check else ""
     outfiles = []
     for file in inputs:
         outfile = ctx.actions.declare_file(file.path + extension)
@@ -41,17 +42,39 @@ def _clang_format_check_impl(ctx):
         args = ctx.actions.args()
         args.add("True" if is_check_only == True else "False")
         args.add(file.path)
+        args.add(copyright)
         args.add(outfile.path)
 
         command = """
+#!/bin/bash
+
 set -euo pipefail
+
 CHECK_ONLY="$1"
 FILENAME="$2"
-OUTFILE="$3"
+COPYRIGHT="$3"        
+OUTFILE="$4"
+
 rm -f "$OUTFILE"
+        
+check_file_for_copyright()
+{{
+    head -n 20 "$FILENAME" | grep -i "copyright" | grep -i "$COPYRIGHT" | grep -iq "all rights reserved" && return 0 || true
+    echo "The file '$FILENAME' is missing a copyright notice like:"
+    echo ""
+    echo "   copyright $COPYRIGHT (yyyy) all rights reserved"
+    echo ""
+    exit 1
+}}
+
+if [ "$COPYRIGHT" != "" ] ; then
+    check_file_for_copyright
+fi
+
 if [ "$CHECK_ONLY" = "False" ] ; then
    {0} -i "$FILENAME"
 fi
+
 {0} -n -Werror "$FILENAME" && touch "$OUTFILE" && exit 0
 exit 1
 """.format(exe)
@@ -81,6 +104,7 @@ clang_format_internal = rule(
             cfg = "exec",
         ),
         "config_file": attr.label(mandatory = False),
+        "copyright_check": attr.string(mandatory = False),
         "mode": attr.string(values = ["check", "fix"], mandatory = True),
         "filter_files": attr.string_list(mandatory = False),
     },
