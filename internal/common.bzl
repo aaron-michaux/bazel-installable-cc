@@ -14,6 +14,26 @@ def is_c_file(file):
 def is_cc_rule(rule):
     return rule.kind in ["cc_binary", "cc_library", "cc_shared_library", "cc_test"]
 
+HDR_FTYPES = [".h", ".hh", ".hpp", ".hxx", ".H"]
+
+SRC_FTYPES = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"]
+
+ALL_FTYPES = HDR_FTYPES + SRC_FTYPES
+
+def is_valid_hdr_file(file):
+    """Tests if the passed file (object) is a header
+
+    Args:
+      file: The file to test
+
+    Returns:
+      True or False =)
+    """
+    for type in HDR_FTYPES:
+        if file.basename.endswith(type):
+            return True
+    return False
+
 def is_valid_src_hdr_file(file):
     """Tests if the passed file (object) is a C++ source/header
 
@@ -23,8 +43,7 @@ def is_valid_src_hdr_file(file):
     Returns:
       True or False =)
     """
-    file_types = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C", ".h", ".hh", ".hpp", ".hxx", ".H"]
-    for type in file_types:
+    for type in ALL_FTYPES:
         if file.basename.endswith(type):
             return True
     return False
@@ -102,6 +121,7 @@ def _calculate_toolchain_flags(ctx, action_name):
     feature_configuration = cc_common.configure_features(
         ctx = ctx,
         cc_toolchain = cc_toolchain,
+        requested_features = ctx.features,
     )
     compile_variables = cc_common.create_compile_variables(
         feature_configuration = feature_configuration,
@@ -141,7 +161,7 @@ def _collect_cc_actions_impl(target, ctx):
         if hasattr(ctx.rule.attr, "copts"):
             cflags = cflags + ctx.rule.attr.copts
             cxxflags = cxxflags + ctx.rule.attr.copts
-
+            
         collected = [{
             "label": ctx.label,
             "kind": ctx.rule.kind,

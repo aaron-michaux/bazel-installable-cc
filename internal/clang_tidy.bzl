@@ -8,9 +8,17 @@ load(
     "append_compiler_context_flags",
     "collect_cc_actions",
     "is_c_file",
+    "is_valid_hdr_file",
 )
 
 # -- Runs clang-tidy
+
+def file_is_filtered(ctx, file):
+    if ctx.attr.filter_files:
+        for pattern in ctx.attr.filter_files:
+            if file.path.startswith(pattern):
+                return True
+    return False
 
 def _calc_inputs(src, config_file, compilation_context):
     return depset(
@@ -41,18 +49,27 @@ def _gen_tidy_logic(ctx, compilation_context, label, kind, attr, srcs, cflags, c
     if not hasattr(attr, "srcs"):
         return outputs
 
+    # exit early 
+    if ctx.attr.filter_tags:
+        for tag in ctx.attr.filter_tags:
+            if tag in attr.tags:
+                return outputs
+        
     for src in srcs:
+        if file_is_filtered(ctx, src) or is_valid_hdr_file(src):
+            continue
+        
         outfile = ctx.actions.declare_file(src.path + ".clang-tidy")
         outputs.append(outfile)
 
         # Memory efficent method to build arguments
         args = ctx.actions.args()
+        args.add(src.path)
 
         if config_file:
             args.add("--config-file={}".format(config_file.path))
         args.add("--export-fixes")
         args.add(outfile.path)
-        args.add(src.path)
 
         # Now add commandline stuff that would appear in compile_commands.json
         args.add("--")
@@ -60,9 +77,14 @@ def _gen_tidy_logic(ctx, compilation_context, label, kind, attr, srcs, cflags, c
         # Add compiler generated args
         flags = cflags if is_c_file(src) else cxxflags
         args.add_all(append_compiler_context_flags(flags, compilation_context))
-
+        
         command = """
-rm -f {1} && touch {1} && {0} "$@"
+filter_output()
+{{
+   cat - | grep -Ev '^Suppressed [0-9]* warnings' | grep -Ev '^[0-9]* warnings generated' | grep -Ev '^Use -header-filter='        
+}}       
+        
+rm -f {1} && touch {1} && {0} "$@" 2> >(filter_output >&2)
 [ -s {1} ] && exit 1 || exit 0
         """.format(exe, outfile.path)
         ctx.actions.run_shell(
@@ -118,5 +140,7 @@ clang_tidy_internal = rule(
         ),
         "config_file": attr.label(mandatory = False),
         "compile_commands": attr.label(mandatory = False),
+        "filter_files": attr.string_list(mandatory = False),
+        "filter_tags": attr.string_list(mandatory = False),
     },
 )

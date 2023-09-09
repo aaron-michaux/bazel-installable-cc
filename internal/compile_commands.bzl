@@ -9,25 +9,33 @@ load(
     "append_compiler_context_flags",
     "collect_cc_actions",
     "is_c_file",
+    "is_valid_hdr_file",
 )
 
 # -- Compile commands
 
 def _gen_compile_commands_logic(ctx, compilation_context, compiler_exe, label, kind, attr, srcs, cflags, cxxflags):
+
+    is_cc_rule = kind.startswith("cc_")
     def make_comp_commands(src):
         is_c = is_c_file(src)
+        is_header = is_valid_hdr_file(src)
+
+        lang = "c" if is_c else "c++"
+        if is_header:
+            lang += "-header"
+        
         flags = append_compiler_context_flags(cflags if is_c else cxxflags, compilation_context)
 
         parts = src.path.split(".")
         if len(parts) > 1:
             parts.pop()
         objfile_path = ".".join(parts) + ".o"
-
         return {
             "directory": ".",
             "file": src.path,
             "output": objfile_path,
-            "arguments": [compiler_exe] + ["-x", "c" if is_c else "c++"] + flags + ["-o", objfile_path],
+            "arguments": [compiler_exe] + ["-x", lang] + flags + ["-o", objfile_path] + [src.path],
         }
 
     return [make_comp_commands(src) for src in srcs]
@@ -42,7 +50,7 @@ def _compile_commands_impl(ctx):
         for t in ctx.attr.targets
         for info in t[CcRuleSetInfo].cc_infos
     ]
-
+    
     # Run on all cc_infos, skipping duplicates
     outputs = []
     cc_dict = {}

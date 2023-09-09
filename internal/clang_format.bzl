@@ -6,9 +6,9 @@ load(":common.bzl", "collect_cc_dependencies")
 
 # -- Runs clang-format
 
-def is_filtered(ctx, file):
-    if ctx.attr.filter:
-        for pattern in ctx.attr.filter:
+def file_is_filtered(ctx, file):
+    if ctx.attr.filter_files:
+        for pattern in ctx.attr.filter_files:
             if file.path.startswith(pattern):
                 return True
     return False
@@ -31,8 +31,8 @@ def _clang_format_check_impl(ctx):
     }
 
     # Apply further filters
-    inputs = [file for file, _ in unique_inputs.items() if not is_filtered(ctx, file)]
-        
+    inputs = [file for file, _ in unique_inputs.items() if not file_is_filtered(ctx, file)]
+    
     outfiles = []
     for file in inputs:
         outfile = ctx.actions.declare_file(file.path + extension)
@@ -82,6 +82,6 @@ clang_format_internal = rule(
         ),
         "config_file": attr.label(mandatory = False),
         "mode": attr.string(values = ["check", "fix"], mandatory = True),
-        "filter": attr.string_list(mandatory = False),
+        "filter_files": attr.string_list(mandatory = False),
     },
 )
