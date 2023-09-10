@@ -124,8 +124,15 @@ def make_flagset(actions, flags, features = None):
 
 # buildifier: disable=function-docstring
 def default_flagsets(ctx):
-    # Compile flags
-    base_comp_flags = combine_flags([], ctx.attr.base_compile_flags)
+    # Version define is used to ensure that bazel notices when the compiler changes
+    version_define = []
+    if ctx.attr.version:
+        compiler = "gcc" if ctx.attr.compiler == "gcc" else "llvm"
+        version_str = ctx.attr.version.replace(".", "_")
+        version_define.append("-DBAZEL_COMPILER____={}_{}".format(compiler, version_str))
+    
+    # Compile flags    
+    base_comp_flags = combine_flags(version_define, ctx.attr.base_compile_flags)
     c_flags = combine_flags([], ctx.attr.c_flags)
     cxx_flags = combine_flags([], ctx.attr.cxx_flags)
     dbg_comp_flags = combine_flags(["-O0", "-g"], ctx.attr.dbg_compile_flags)
@@ -1225,16 +1232,15 @@ def make_toolchain_from_install_root(
             cxx_builtin_include_directories = cxx_builtin_include_directories,
         )
 
-    host_platform = [
+    target_platform = [
         "@platforms//os:" + ("linux" if operating_system == "linux" else "osx"),
         "@platforms//cpu:" + (sys_machine.split("-")[0]),
     ]
-    target_platform = host_platform
 
     make_toolchain(
         name = label,
         toolchain_config = ":" + config_label,
-        host_platform = host_platform,
+        host_platform = target_platform,
         target_platform = target_platform,
     )
 
