@@ -1,0 +1,2 @@
+module(name = "installable_cc", version = "0.9.1")
+bazel_dep(name="rules_cc", version="0.0.8", repo_name="rules_cc")

@@ -70,6 +70,7 @@ initialize_toolchain(
     toolchain_flags = TOOLCHAIN_FLAGS,  # Flag customization
     urls = URLS,  # Where toolchains are downloaded from
 )
+register_toolchains("@initialize_toolchain//:cc")
 
 # -- Workspace Setup
 

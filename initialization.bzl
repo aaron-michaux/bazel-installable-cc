@@ -501,4 +501,4 @@ def initialize_toolchain(name, urls, manifest, toolchain_flags = {}, no_check_ce
         toolchain_flags = toolchain_flags,
         no_check_certificate = no_check_certificate,
     )
-    native.register_toolchains("@" + name + "//:cc")
+    

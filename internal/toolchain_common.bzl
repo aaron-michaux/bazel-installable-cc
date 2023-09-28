@@ -148,7 +148,7 @@ def default_flagsets(ctx):
 
     # Link flags
     base_link_flags = combine_flags([], ctx.attr.base_link_flags)
-    dbg_link_flags = combine_flags(["-g", "-Wl,-no-as-needed"], ctx.attr.dbg_link_flags)
+    dbg_link_flags = combine_flags(["-g"], ctx.attr.dbg_link_flags)
     opt_link_flags = combine_flags(["-Wl,--gc-sections"], ctx.attr.opt_link_flags)
     coverage_link_flags = combine_flags([], ctx.attr.coverage_link_flags)
     benchmark_link_flags = combine_flags(["-Wl,-z,now"], ctx.attr.benchmark_link_flags)
