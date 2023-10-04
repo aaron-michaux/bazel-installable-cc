@@ -412,6 +412,7 @@ def _initialization_impl(repo_ctx):
     repo_ctx.file("common.bzl", content = repo_ctx.read(Label("//internal:common.bzl")), executable = False)
     repo_ctx.file("compile_commands.bzl", content = repo_ctx.read(Label("//internal:compile_commands.bzl")), executable = False)
     repo_ctx.file("defs.bzl", content = repo_ctx.read(Label("//internal:defs.bzl")), executable = False)
+    repo_ctx.file("make_makefile.bzl", content = repo_ctx.read(Label("//internal:make_makefile.bzl")), executable = False)
     repo_ctx.file("toolchain_common.bzl", content = repo_ctx.read(Label("//internal:toolchain_common.bzl")), executable = False)
 
     # This file isn't strictly necessary, but done here to deswade Bazel from
