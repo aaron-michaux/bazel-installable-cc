@@ -31,6 +31,7 @@ archive_it()
     local TOOL="$1"
     local TOOLROOT="${TOOL}--${MACHINE}--${VENDOR_TAG}--${PLATFORM}"
     local ARCHIVE="${TOOLROOT}.tar.xz"
+    mkdir -p "$TOOLCHAINS_DIR"
     cd "$TOOLCHAINS_DIR"
     if [ ! -d "$TOOLROOT" ] ; then
         echo "archive $TOOLROOT, skipping (directory missing)"
