@@ -196,7 +196,7 @@ build_llvm()
          -D LIBCXX_ENABLE_SHARED=Yes \
          -D LIBCXX_ENABLE_STATIC=Yes \
          -D LLVM_BUILD_LLVM_DYLIB=Yes \
-         -D LLVM_TARGETS_TO_BUILD="X86;AArch64;ARM;WebAssembly" \
+         -D LLVM_TARGETS_TO_BUILD="X86;BPF;AArch64;ARM;WebAssembly" \
          -D CMAKE_INSTALL_PREFIX:PATH="$INSTALL_PREFIX" \
          $SRC_D/llvm-project/llvm
 
