@@ -130,8 +130,8 @@ def default_flagsets(ctx):
         compiler = "gcc" if ctx.attr.compiler == "gcc" else "llvm"
         version_str = ctx.attr.version.replace(".", "_")
         version_define.append("-DBAZEL_COMPILER____={}_{}".format(compiler, version_str))
-    
-    # Compile flags    
+
+    # Compile flags
     base_comp_flags = combine_flags(version_define, ctx.attr.base_compile_flags)
     c_flags = combine_flags([], ctx.attr.c_flags)
     cxx_flags = combine_flags([], ctx.attr.cxx_flags)
@@ -1265,12 +1265,15 @@ binary_alias = rule(
 
 # -- compiler flavor
 
-CompilerFlavorProvider = provider(fields = ['type'])
+CompilerFlavorProviderInfo = provider(
+    "A provider that makes the toolchain type (gcc/llvm) available through a config_setting.",
+    fields = ["type"],
+)
 
 def _compiler_flavor_impl(ctx):
-    return CompilerFlavorProvider(type = ctx.build_setting_value)
+    return CompilerFlavorProviderInfo(type = ctx.build_setting_value)
 
 compiler_flavor = rule(
     implementation = _compiler_flavor_impl,
-    build_setting = config.string(flag = True)
+    build_setting = config.string(flag = True),
 )

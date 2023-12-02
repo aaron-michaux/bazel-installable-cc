@@ -7,6 +7,15 @@ load(":common.bzl", "collect_cc_dependencies")
 # -- Runs clang-format
 
 def file_is_filtered(ctx, file):
+    """Returns TRUE if, and only it, the passed file should be filtered according to ctx's filters
+
+    Args:
+      ctx: The context with `ctx.attr.filter_files`
+      file: The file whose name (path) will be tested against the filters
+
+    Returns:
+      True or False
+    """
     if ctx.attr.filter_files:
         for pattern in ctx.attr.filter_files:
             if file.path.startswith(pattern):

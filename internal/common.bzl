@@ -161,7 +161,7 @@ def _collect_cc_actions_impl(target, ctx):
         if hasattr(ctx.rule.attr, "copts"):
             cflags = cflags + ctx.rule.attr.copts
             cxxflags = cxxflags + ctx.rule.attr.copts
-            
+
         collected = [{
             "label": ctx.label,
             "kind": ctx.rule.kind,

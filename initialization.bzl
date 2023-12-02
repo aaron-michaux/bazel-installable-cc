@@ -311,6 +311,7 @@ def _download_one(repo_ctx, url, archive_name, expected_hash, cache_file):
 def _download_and_extract_one(
         repo_ctx,
         url,
+        attempt,
         archive_name,
         expected_hash,
         destination_dir,
@@ -320,7 +321,7 @@ def _download_and_extract_one(
         return True
 
     # Attempt to download the file
-    info(repo_ctx, "downloading url: {}".format("{}/{}".format(url, archive_name)))
+    info(repo_ctx, "download attempt {}, url: {}".format(attempt, "{}/{}".format(url, archive_name)))
     ensure_directory_exists(repo_ctx, download_cache_dir)
     cache_file = "{}/{}".format(download_cache_dir, archive_name)
     if not _download_one(repo_ctx, url, archive_name, expected_hash, cache_file):
@@ -373,16 +374,25 @@ def _download_and_extract(
 
     # If we don't have an installation, then try each URL in turn to get one
     if not _is_extracted(repo_ctx, archive_name, expected_hash, destination_dir):
-        for url in urls:
-            if _download_and_extract_one(
-                repo_ctx,
-                url,
-                archive_name,
-                expected_hash,
-                destination_dir,
-                download_cache_dir,
-            ):
-                break
+        is_downloaded = False
+        for attempt in range(max(repo_ctx.attr.download_attempts, 1)):
+            if attempt > 0:
+                # Sleep for a bit if we're past the first attempt
+                repo_ctx.execute(["sleep", "{}".format(attempt)])
+            for url in urls:
+                is_downloaded = _download_and_extract_one(
+                    repo_ctx,
+                    url,
+                    attempt + 1,  # For reporting only
+                    archive_name,
+                    expected_hash,
+                    destination_dir,
+                    download_cache_dir,
+                )
+                if is_downloaded:
+                    break  # Exit the for-loop
+            if is_downloaded:
+                break  # Exit the for-loop
 
     # Check again to ensure we have an installation
     if not _is_extracted(repo_ctx, archive_name, expected_hash, destination_dir):
@@ -465,7 +475,7 @@ def _initialization_impl(repo_ctx):
         info(repo_ctx, "selecting compiler: {}".format(toolchain_version))
 
     is_gcc = (use_host_toolchain or toolchain_directory.find("gcc") >= 0)
-        
+
     # Set up the BUILD template
     flags = repo_ctx.attr.toolchain_flags if repo_ctx.attr.toolchain_flags else []
     template_substitutions = {
@@ -489,17 +499,18 @@ initialization = repository_rule(
         "manifest": attr.string(mandatory = True),
         "toolchain_flags": attr.string_list_dict(mandatory = False),
         "no_check_certificate": attr.bool(mandatory = False),
+        "download_attempts": attr.int(mandatory = False, default = 1),
     },
 )
 
 # --------------------------------------------------------- initialize-toolchain
 
-def initialize_toolchain(name, urls, manifest, toolchain_flags = {}, no_check_certificate = False):
+def initialize_toolchain(name, urls, manifest, toolchain_flags = {}, no_check_certificate = False, download_attempts = 1):
     initialization(
         name = name,
         download_urls = urls,
         manifest = manifest,
         toolchain_flags = toolchain_flags,
         no_check_certificate = no_check_certificate,
+        download_attempts = download_attempts,
     )
-    

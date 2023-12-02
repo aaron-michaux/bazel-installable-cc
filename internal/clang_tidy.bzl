@@ -14,6 +14,15 @@ load(
 # -- Runs clang-tidy
 
 def file_is_filtered(ctx, file):
+    """Returns TRUE if, and only it, the passed file should be filtered according to ctx's filters
+
+    Args:
+      ctx: The context with `ctx.attr.filter_files`
+      file: The file whose name (path) will be tested against the filters
+
+    Returns:
+      True or False
+    """
     if ctx.attr.filter_files:
         for pattern in ctx.attr.filter_files:
             if file.path.startswith(pattern):
@@ -49,16 +58,16 @@ def _gen_tidy_logic(ctx, compilation_context, label, kind, attr, srcs, cflags, c
     if not hasattr(attr, "srcs"):
         return outputs
 
-    # exit early 
+    # exit early
     if ctx.attr.filter_tags:
         for tag in ctx.attr.filter_tags:
             if tag in attr.tags:
                 return outputs
-        
+
     for src in srcs:
         if file_is_filtered(ctx, src) or is_valid_hdr_file(src):
             continue
-        
+
         outfile = ctx.actions.declare_file(src.path + ".clang-tidy")
         outputs.append(outfile)
 
@@ -77,7 +86,7 @@ def _gen_tidy_logic(ctx, compilation_context, label, kind, attr, srcs, cflags, c
         # Add compiler generated args
         flags = cflags if is_c_file(src) else cxxflags
         args.add_all(append_compiler_context_flags(flags, compilation_context))
-        
+
         command = """
 filter_output()
 {{
