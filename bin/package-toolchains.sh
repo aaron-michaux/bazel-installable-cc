@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 THIS_SCRIPT="$([ -L "$0" ] && readlink -f "$0" || echo "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$THIS_SCRIPT")" ; pwd -P)"
@@ -20,8 +20,10 @@ show_help()
          $LLVMS
          $GCCS
     
-      If 'archive' is done without 'build', then all archive
-      jobs are done in parallel.
+   Examples:
+
+      # Build and archive four toolchains; the archive step is done in parallel
+      > $(basename $0) build archive llvm-17.0.6 llvm-16.0.6 llvm-15.0.7 llvm-14.0.6
 
 EOF
 }
@@ -75,20 +77,19 @@ while (( $# > 0 )) ; do
     [ "$ARG" = "archive" ] && DO_ARCHIVE=true && continue
     [ "$ARG" = "--cleanup" ] && CLEANUP_ARG="$ARG" && continue
     [ "$ARG" = "--no-cleanup" ] && CLEANUP_ARG="$ARG" && continue
-    if [ "$TOOLCHAIN" != "" ] ; then
-        echo "unexpected argument: '$ARG', toolchain already set to '$TOOLCHAIN'" 1>&2
-        exit 1
-    fi
-    TOOLCHAIN="$ARG"
+    TOOLCHAIN+=" $ARG"
 done
 
 TOOLCHAINS="$LLVMS $GCCS"
 if [ "$TOOLCHAIN" != ":all" ] ; then
     # Check toolchain is in the list
-    if ! echo "$TOOLCHAINS" | grep -q "$TOOLCHAIN" ; then
-        echo "Unexpected toolchain: '$TOOLCHAIN'" 1>&2
-        exit 1
-    fi
+    for ARG in $TOOLCHAIN ; do
+        if ! echo "$TOOLCHAINS" | grep -q "$ARG" ; then
+            echo "Unexpected toolchain: '$ARG'" 1>&2
+            exit 1
+        fi
+    done
+    # Could be more than one
     TOOLCHAINS="$TOOLCHAIN"
 fi
 
@@ -97,19 +98,19 @@ if ! $DO_BUILD && ! $DO_ARCHIVE ; then
     exit 1
 fi
 
-for TOOL in $TOOLCHAINS ; do
-    $DO_BUILD && build_it "$TOOL" || true
+HAS_ERROR="false"
+if $DO_BUILD ; then
+    for TOOL in $TOOLCHAINS ; do
+        build_it "$TOOL" || HAS_ERROR="true"
+    done
+fi
 
-    if $DO_ARCHIVE ; then
-        if $DO_BUILD ; then
-            archive_it "$TOOL"
-        else
-            archive_it "$TOOL" &
-        fi        
-    fi
-done
-
-wait
+if $DO_ARCHIVE && ! $HAS_ERROR ; then
+    for TOOL in $TOOLCHAINS ; do
+        archive_it "$TOOL" &
+    done
+    wait
+fi
 
 echo "all jobs complete"
 
