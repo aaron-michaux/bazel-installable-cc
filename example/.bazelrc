@@ -15,8 +15,8 @@ build --features=pic
 
 # -- Compiler
 # The vendor can be auto-selected or manually specified
-build:gcc     --repo_env=compiler=host
-build:llvm    --repo_env=compiler=llvm-16.0.6
+build:gcc     --config=gcc13
+build:llvm    --config=llvm17
 build:gcc9    --repo_env=compiler=gcc-9.5.0
 build:gcc10   --repo_env=compiler=gcc-10.5.0
 build:gcc11   --repo_env=compiler=gcc-11.4.0
