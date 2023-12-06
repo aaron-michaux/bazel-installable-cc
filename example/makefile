@@ -10,59 +10,54 @@ BANNER_END:=
 endif
 RECIPETAIL:=echo
 
-PROJECT_NAME:=example
-OUTPUT_BASE:=$(HOME)/.cache/bazel/_bazel_$(USER)/$(PROJECT_NAME)
+OUTPUT_BASE:=$(shell tools/print_output_base.sh)
 COMPILER:=--config=gcc13
 
 debug:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/debug build $(COMPILER) --config=debug //example/...
+	bazel --output_base=$(OUTPUT_BASE)/debug build $(COMPILER) --config=debug //src/... //config/...
 	@$(RECIPETAIL)
 
 release:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/release build $(COMPILER) --config=release //example/...
+	bazel --output_base=$(OUTPUT_BASE)/release build $(COMPILER) --config=release //src/... //config/...
 	@$(RECIPETAIL)
 
 asan:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/asan build $(COMPILER) --config=asan //example/...
+	bazel --output_base=$(OUTPUT_BASE)/asan build $(COMPILER) --config=asan //src/... //config/...
 	@$(RECIPETAIL)
 
 ubsan:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/ubsan build $(COMPILER) --config=ubsan //example/...
+	bazel --output_base=$(OUTPUT_BASE)/ubsan build $(COMPILER) --config=ubsan //src/... //config/...
 	@$(RECIPETAIL)
 
 tsan:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/tsan build $(COMPILER) --config=tsan //example/...
+	bazel --output_base=$(OUTPUT_BASE)/tsan build $(COMPILER) --config=tsan //src/... //config/...
 	@$(RECIPETAIL)
 
 compile_commands:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	tools/target_lists/refresh.sh
-	bazel --output_base=$(OUTPUT_BASE)/tool --config=compdb :compile_commands
-	rm -f compile_commands.json
-	ln -s bazel-bin/compile_commands.json compile_commands.json
+	tools/lint/refresh.sh compile_commands //src/... //config/...
 	@$(RECIPETAIL)
 
 static_analysis:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	bazel --output_base=$(OUTPUT_BASE)/tool build --config=static_analysis :static_analysis
+	tools/lint/refresh.sh static_analysis //src/... //config/...
 	@$(RECIPETAIL)
 
 format_check:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	tools/target_lists/refresh.sh
-	bazel --output_base=$(OUTPUT_BASE)/tool build --config=llvm :format_check
+	tools/lint/refresh.sh clang_format check //src/... //config/...
 	bazel --output_base=$(OUTPUT_BASE)/buildifier run :buildifier_check
 	@$(RECIPETAIL)
 
 format_fix:
 	@echo "$(BANNER_START)$@$(BANNER_END)"
-	tools/target_lists/refresh.sh
-	bazel --output_base=$(OUTPUT_BASE)/tool build --spawn_strategy=standalone --config=llvm :format_fix
+	tools/lint/refresh.sh clang_format fix //src/... //config/...
+	bazel --output_base=$(OUTPUT_BASE)/buildifier run :buildifier_check
 	bazel --output_base=$(OUTPUT_BASE)/buildifier run --spawn_strategy=standalone :buildifier_fix
 	bazel --output_base=$(OUTPUT_BASE)/buildifier run --spawn_strategy=standalone :buildifier_check
 	@$(RECIPETAIL)
