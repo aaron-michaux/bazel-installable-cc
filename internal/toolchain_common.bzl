@@ -1186,7 +1186,7 @@ def make_toolchain_from_install_root(
     if is_host_compiler:
         make_toolchain_config(
             name = config_label,
-            compiler = "gcc",
+            compiler = "gcc" if operating_system == "linux" else "clang",
             install_root = "/usr",
             architecture = sys_machine,
             additional_args = additional_args,
