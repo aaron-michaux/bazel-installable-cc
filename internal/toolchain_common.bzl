@@ -199,8 +199,8 @@ def default_stdlib_flags(ctx):
     has_stdcxx = "stdcxx" in ctx.features
     if has_libcxx or has_stdcxx:
         return []
-    return stdcxx_flags(ctx)  # Defaults to 'libstdcxx'
-
+    return stdcxx_flags(ctx)  # Defaults to 'libstdcxx'    
+    
 # buildifier: disable=function-docstring
 def stdcxx_flags(ctx):
     install_root = ctx.attr.install_root
@@ -403,14 +403,14 @@ def lto_flags(ctx):
         flag_set(
             actions = ALL_COMPILE_ACTIONS,
             flag_groups = ([flag_group(flags = [
-                "-flto",
+                "-flto=auto",
                 "-ffat-lto-objects",
             ])]),
         ),
         flag_set(
             actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = ([flag_group(flags = [
-                "-flto",
+                "-flto=auto",
                 "-fuse-linker-plugin",
             ])]),
         ),
