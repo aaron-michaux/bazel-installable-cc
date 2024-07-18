@@ -16,7 +16,7 @@ show_help()
 
    Options:
 
-      --install-dependencies  Instead of building, install build dependencies
+      --install-dependencies  Install build dependencies before building
 
       --cleanup               Remove temporary files after building
       --no-cleanup            Do not remove temporary files after building
@@ -88,8 +88,8 @@ ensure_directory()
         mkdir -p "$D"
     fi
     if [ ! -w "$D" ] ; then
-        echo "Directory '$D' is not writable by $USER, chgrp..."
-        test_add_group "$D" "staff" "adm" "$USER" 
+        echo "Directory '$D' is not writable by $PLATFORM_USER, chgrp..."
+        test_add_group "$D" "staff" "adm" "$PLATFORM_USER" 
         chmod 775 "$D"
     fi
     if [ ! -d "$D" ] || [ ! -w "$D" ] ; then
@@ -110,20 +110,23 @@ install_dependences()
         echo "Either 'sudo' must be installed, or must run as root" 1>&2
         exit 1
     fi
-    
-    # TODO: use a fresh docker container to figure our the minimal list
+    (( $(id -u) == 0 )) && SUDO_CMD= || SUDO_CMD=sudo
+
     if [ "$VENDOR" = "ubuntu" ] || [ "$VENDOR" = "debian" ] ; then
         export DEBIAN_FRONTEND=noninteractive
         # TODO: test for 'sudo', if ignore this line if it doesn't exist
-        sudo apt-get install -y -qq \
-             wget subversion automake swig python2.7-dev libedit-dev libncurses5-dev  \
+        $SUDO_CMD apt-get update
+        $SUDO_CMD apt-get install -y -qq \
+             git wget subversion automake swig python2.7-dev libedit-dev libncurses5-dev  \
              gcc-multilib python3-dev python3-pip python3-tk python3-lxml python3-six \
              libparted-dev flex sphinx-doc guile-2.2 gperf gettext expect tcl dejagnu \
              libgmp-dev libmpfr-dev libmpc-dev patchelf liblz-dev pax-utils bison flex \
              libxapian-dev lld
 
-    elif [ "$VENDOR" = "oracle" ] ; then
-        sudo yum install -y bison xapian-core-devel
+    elif [ "$VENDOR" = "ol" ] ; then
+        # Will force to 8.10!
+        # $SUDO_CMD yum update -y
+        $SUDO_CMD yum install -y git bison mpfr-devel gmp-devel libmpc-devel zlib-devel glibc-devel.i686 glibc-devel gcc
     fi
 }
 
@@ -268,7 +271,7 @@ while (( $# > 0 )) ; do
     [ "$ARG" = "--cleanup" ]       && export CLEANUP="True" && continue
     [ "$ARG" = "--no-cleanup" ]    && export CLEANUP="False" && continue
     [ "$ARG" = "--force" ] || [ "$ARG" = "-f" ] && export FORCE_INSTALL="True" && continue
-    [ "$ARG" = "--install-dependencies" ] && INSTALL_DEPS = "True" && continue
+    [ "$ARG" = "--install-dependencies" ] && INSTALL_DEPS="True" && continue
     [ "$ARG" = "--toolchain-root" ] && export TOOLCHAINS_DIR="$1" && shift && continue
     
     if [ "${ARG:0:3}" = "gcc" ] ; then
@@ -289,9 +292,12 @@ while (( $# > 0 )) ; do
 
     echo "unexpected argument: '$ARG'" 1>&2 && exit 1
 done
-      
+
 if [ "$INSTALL_DEPS" = "True" ] ; then
     install_dependences
+    if [ "$COMPILER" = "" ] ; then
+        exit 0 # We're done
+    fi
 fi
 
 if [ "$COMPILER" = "" ] ; then
@@ -302,7 +308,7 @@ SCRIPT_NAME="$(basename "$THIS_SCRIPT")"
 if [ "$CLEANUP" = "True" ] ; then
     TMPD="$(mktemp -d /tmp/$(basename "$SCRIPT_NAME" .sh).XXXXXX)"
 else
-    TMPD="/tmp/$([ "$USER" != "" ] && echo "${USER}-")toolchains/builddir"
+    TMPD="/tmp/${PLATFORM_USER}-toolchains/builddir"
     mkdir -p "$TMPD"
     echo "Setting TMPD=$TMPD"
 fi
