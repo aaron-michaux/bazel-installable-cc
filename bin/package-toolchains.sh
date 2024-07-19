@@ -14,7 +14,6 @@ all_hosts()
 oraclelinux:8.9
 oraclelinux:8.10
 debian:trixie
-debian:bullseye
 ubuntu:22.04
 ubuntu:24.04
 EOF
@@ -69,7 +68,7 @@ build_it()
     local TOOL="$1"
     cd "$SCRIPT_DIR"
     echo "build $TOOL"
-    ./build-toolchain.sh $CLEANUP_ARG $INSTALL_ARG "$TOOL"    
+    ./build-toolchain.sh $CLEANUP_ARG $INSTALL_ARG $TOOLCHAIN_ROOT_ARG --build-tmp-dir $BUILD_TMPD_BASE "$TOOL"    
 }
 
 get_dockerfile()
@@ -89,6 +88,8 @@ CLEANUP_ARG="--no-cleanup"
 HOSTS=
 DOCKER_COMMAND_ARGS=""
 INSTALL_ARG=""
+BUILD_TMPD_BASE="/tmp/${USER}-toolchains"
+TOOLCHAIN_ROOT_ARG=""
 
 for ARG in "$@" ; do
     [ "$ARG" = "-h" ] || [ "$ARG" = "--help" ] && show_help && exit 0
@@ -110,6 +111,9 @@ while (( $# > 0 )) ; do
     [ "$ARG" = "--cleanup" ] && CLEANUP_ARG="$ARG" && continue
     [ "$ARG" = "--no-cleanup" ] && CLEANUP_ARG="$ARG" && continue
     [ "$ARG" = "--install-dependencies" ] && INSTALL_ARG="$ARG" && continue
+    [ "$ARG" = "--build-tmp-dir" ] && BUILD_TMPD_BASE="$1" && DOCKER_COMMAND_ARGS+="$1 " && shift && continue
+    [ "$ARG" = "--toolchain-root" ] && TOOLCHAIN_ROOT_ARG="$ARG $1" && DOCKER_COMMAND_ARGS+="$1 " && shift && continue
+    [ "$ARG" = "--base" ] && TOOLCHAIN_ROOT_ARG="$ARG $1" && BUILD_TMPD_BASE="$1" && DOCKER_COMMAND_ARGS+="$1 " && shift && continue
     [ "$ARG" = ":all" ] && TOOLCHAIN="$ARG" && continue
     TOOLCHAIN+=" $ARG"
 done
@@ -146,8 +150,9 @@ if ! $DO_BUILD && ! $DO_ARCHIVE ; then
 fi
 
 if [ "$HOSTS" != "" ] ; then
+    HAS_ERROR="false"
     TMP_USER="$([ "$(id -u)" == "0" ] && echo "root" || echo "$USER")"
-    BUILD_TMPD="/tmp/${TMP_USER}-toolchains"
+    BUILD_TMPD="$BUILD_TMPD_BASE"
     mkdir -p "$BUILD_TMPD"
     for HOST in $HOSTS ; do
         DOCKER_VENDOR="$(echo "$HOST" | awk -F: '{ print $1 }')"
@@ -161,8 +166,9 @@ if [ "$HOSTS" != "" ] ; then
         CONTAINER_NAME="$(echo "$HOST" | sed 's,:,-,')_build_container"
         docker kill "$CONTAINER_NAME" 1>/dev/null 2>/dev/null || true
         docker rm   "$CONTAINER_NAME" 1>/dev/null 2>/dev/null || true
-        docker run --init --rm --name "$CONTAINER_NAME" --user $(id -u):$(id -g) -e USER=$USER -e USER_HOME=$HOME -v "$SCRIPT_DIR/..:/bazel-installable-cc" -v "$BUILD_TMPD:$BUILD_TMPD" -w "/bazel-installable-cc" ${DOCKER_TAG}:latest bin/package-toolchains.sh $DOCKER_COMMAND_ARGS
+        docker run --init --rm --name "$CONTAINER_NAME" --user $(id -u):$(id -g) -e USER=$USER -e USER_HOME=$HOME -v "$SCRIPT_DIR/..:/bazel-installable-cc" -v "$BUILD_TMPD:$BUILD_TMPD" -w "/bazel-installable-cc" ${DOCKER_TAG}:latest bin/package-toolchains.sh $DOCKER_COMMAND_ARGS || HAS_ERROR="true"
     done
+    $HAS_ERROR && exit 1 || exit 0
 fi
 
 # -- If there's no toolchains and we're installing dependencies, then just do that

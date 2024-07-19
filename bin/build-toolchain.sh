@@ -124,9 +124,13 @@ install_dependences()
              libxapian-dev lld
 
     elif [ "$VENDOR" = "ol" ] ; then
-        # Will force to 8.10!
-        # $SUDO_CMD yum update -y
-        $SUDO_CMD yum install -y git bison mpfr-devel gmp-devel libmpc-devel zlib-devel glibc-devel.i686 glibc-devel gcc
+        $SUDO_CMD yum install -y \
+                  autoconf automake make gettext libtool \
+                  bash expect guile git bison flex patch pkgconfig tar wget expect check zstd  \
+                  mpfr-devel gmp-devel libmpc-devel zlib-devel glibc-devel libzstd-devel \
+                  python3-pip python3-lxml python3-six \
+                  binutils gcc gcc-c++ lld \
+                  openssl-devel openssl-libs
     fi
 }
 
@@ -183,7 +187,7 @@ build_llvm()
     local LLVM_ENABLE_RUNTIMES_ARG="-D LLVM_ENABLE_RUNTIMES=compiler-rt;libc;libcxx;libcxxabi;libunwind"
     local MAJOR_VERSION="$(echo "$VERSION" | awk -F. '{ print $1 }')"
     if (( $MAJOR_VERSION <= 12 )) ; then
-        LLVM_ENABLE_PROJECTS="$LLVM_ENABLE_PROJECTS;compiler-rt;libcxx;libcxxabi;libunwind"
+        LLVM_ENABLE_PROJECTS="$LLVM_ENABLE_PROJECTS;compiler-rt;libcxx;libcxxabi;libunwind;clang-tools-extra"
         LLVM_ENABLE_RUNTIMES_ARG=""
     fi
     
@@ -216,7 +220,7 @@ build_gcc()
     
     local MAJOR_VERSION="$(echo "$VERSION" | sed 's,\..*$,,')"
     local SRCD="$TMPD/$SUFFIX"
-    
+
     mkdir -p "$SRCD"
     cd "$SRCD"
     if [ ! -d "gcc" ] ;then
@@ -264,6 +268,7 @@ FORCE_INSTALL="False"
 INSTALL_DEPS="False"
 TMPD=""
 COMPILER=""
+BUILD_TMPD_BASE="/tmp/${PLATFORM_USER}-toolchains"
 
 while (( $# > 0 )) ; do
     ARG="$1"
@@ -273,7 +278,9 @@ while (( $# > 0 )) ; do
     [ "$ARG" = "--force" ] || [ "$ARG" = "-f" ] && export FORCE_INSTALL="True" && continue
     [ "$ARG" = "--install-dependencies" ] && INSTALL_DEPS="True" && continue
     [ "$ARG" = "--toolchain-root" ] && export TOOLCHAINS_DIR="$1" && shift && continue
-    
+    [ "$ARG" = "--build-tmp-dir" ] && BUILD_TMPD_BASE="$1" && shift && continue
+    [ "$ARG" = "--base" ] && export TOOLCHAINS_DIR="$1" && BUILD_TMPD_BASE="$1" && shift && continue
+
     if [ "${ARG:0:3}" = "gcc" ] ; then
         COMPILER="gcc"
         VERSION="${ARG:4}"
@@ -308,7 +315,7 @@ SCRIPT_NAME="$(basename "$THIS_SCRIPT")"
 if [ "$CLEANUP" = "True" ] ; then
     TMPD="$(mktemp -d /tmp/$(basename "$SCRIPT_NAME" .sh).XXXXXX)"
 else
-    TMPD="/tmp/${PLATFORM_USER}-toolchains/builddir"
+    TMPD="$BUILD_TMPD_BASE/builddir"
     mkdir -p "$TMPD"
     echo "Setting TMPD=$TMPD"
 fi
