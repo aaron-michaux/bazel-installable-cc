@@ -185,6 +185,7 @@ if $DO_BUILD ; then
 fi
 
 if $DO_ARCHIVE && ! $HAS_ERROR ; then
+    source "$SCRIPT_DIR/platform.sh"
     for TOOL in $TOOLCHAINS ; do
         archive_it "$TOOL" &
     done
