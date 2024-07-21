@@ -6,16 +6,17 @@ THIS_SCRIPT="$([ -L "$0" ] && readlink -f "$0" || echo "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$THIS_SCRIPT")" ; pwd -P)"
 
 LLVMS="llvm-18.1.8 llvm-17.0.6 llvm-16.0.6 llvm-15.0.7 llvm-14.0.6 llvm-13.0.1 llvm-12.0.1"
-GCCS="gcc-14.1.0 gcc-13.3.0 gcc-12.4.0 gcc-11.4.0 gcc-10.5.0 gcc-9.5.0"
+GCCS="gcc-14.1.0 gcc-13.3.0 gcc-12.4.0 gcc-11.5.0 gcc-10.5.0 gcc-9.5.0"
 
 all_hosts()
 {
+    # Full-name | Short name
     cat <<EOF
-oraclelinux:8.9
-oraclelinux:8.10
-debian:trixie
-ubuntu:22.04
-ubuntu:24.04
+oraclelinux:8.9    ol8.9
+oraclelinux:8.10   ol8.10
+debian:trixie      trixie
+ubuntu:22.04       jammy
+ubuntu:24.04       noble
 EOF
 }
 
@@ -32,7 +33,7 @@ show_help()
 
       Hosts can be:
 
-$(all_hosts | sed 's,^,         ,')
+$(all_hosts | awk '{ print $1 }' | sed 's,^,         ,')
 
    Examples:
 
@@ -74,11 +75,24 @@ build_it()
 get_dockerfile()
 {
     local HOST="$1"
-    echo "$HOST" | grep -q debian && echo "apt.dockerfile" && return 0 || true
-    echo "$HOST" | grep -q ubuntu && echo "apt.dockerfile" && return 0 || true
-    echo "$HOST" | grep -q oracle && echo "yum.dockerfile" && return 0 || true
-    echo "$HOST" | grep -q fedora && echo "yum.dockerfile" && return 0 || true
-    return 1
+    echo "${HOST}.dockerfile" | sed 's,:,_,'
+}
+
+is_host()
+{
+    local HOST="$1"
+    all_hosts | awk '{ print $1 }' | grep -Eq "^$HOST\$" && return 0 || return 1
+}
+
+translate_host()
+{
+    local HOST="$1"
+    is_host "$HOST" && echo "$HOST" && return 0 || true
+    while read NAME SHORT ; do
+        [ "$HOST" = "$SHORT" ] && echo "$NAME" && return 0 || true
+    done < <(all_hosts)
+    # Give up
+    echo "$HOST"
 }
 
 DO_ARCHIVE=false
@@ -102,7 +116,7 @@ fi
 while (( $# > 0 )) ; do
     ARG="$1"
     shift
-    [ "$ARG" = "--host" ] && HOSTS+="$1 " && shift && continue
+    [ "$ARG" = "--host" ] && HOSTS+="$(translate_host "$1") " && shift && continue
 
     # The rest of the args should be stored in docker-commands
     DOCKER_COMMAND_ARGS+="$ARG "
@@ -137,7 +151,7 @@ if echo "$HOSTS" | grep -q ":all" ; then
     HOSTS="$(all_hosts | tr '\n' ' ')"
 elif [ "$HOSTS" != "" ] ; then
     for HOST in $HOSTS ; do
-        if ! all_hosts | grep -q "$HOST" ; then
+        if ! is_host "$HOST" ; then
             echo "Unexpected host: '$HOST'" 1>&2
             exit 1
         fi

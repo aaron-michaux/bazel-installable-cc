@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -eux
 
 THIS_SCRIPT="$([ -L "$0" ] && readlink -f "$0" || echo "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$THIS_SCRIPT")" ; pwd -P)"
@@ -47,12 +47,53 @@ show_help()
 EOF
 }
 
+# ---------------------------------------------------------- Check Compatibility
+
+# In compatibility Chart
+# +-----------------------+-------+-------+
+# | Host                  | LLVM  |  GCC  |
+# +-----------------------+-------+-------+
+# | Debian Trixie (gcc13) | 12-14 |   9   |
+# | Ubuntu 24.04  (gcc13) | 12-13 |   9   |
+# | Ubuntu 22.04  (gcc11) |   ?   |   ?   |
+# | OL 8.9         (gcc8) |   -   |   -   |
+# | OL 8.10        (gcc8) | 13,14 |   -   |
+# +-----------------------+-------+-------+
+#
+# gcc9      incompatible with newer glibc
+# llvm12-14 incompatible with python 3.12 or newer, because distutils 
+
+check_compatibility()
+{
+    local VENDOR_TAG="$1"
+    local COMPILER="$2"
+    local VERSION="$3"
+
+    local MAJOR_VERSION="$(echo "$VERSION" | awk -F. '{ print $1 }')"
+    
+    if [ "$VENDOR_TAG" = "debian-trixie" ] ; then
+        [ "$COMPILER" = "gcc" ]  && (( $MAJOR_VERSION >= 10 )) && return 0
+        [ "$COMPILER" = "llvm" ] && (( $MAJOR_VERSION >= 15 )) && return 0
+    fi
+
+    if [ "$VENDOR_TAG" = "ubuntu-noble" ] ; then
+        [ "$COMPILER" = "gcc" ]  && (( $MAJOR_VERSION >= 10 )) && return 0
+        [ "$COMPILER" = "llvm" ] && (( $MAJOR_VERSION >= 14 )) && return 0
+    fi
+
+    if [ "$VENDOR_TAG" = "ubuntu-jammy" ] ; then
+        [ "$COMPILER" = "gcc" ]  && (( $MAJOR_VERSION >=  9 )) && return 0
+        [ "$COMPILER" = "llvm" ] && (( $MAJOR_VERSION >= 12 )) && return 0
+    fi
+
+    return 1
+}
+
 # ------------------------------------------------------ Host Platform Variables
 
-TOOLS_DIR="$TOOLCHAINS_DIR/tools"
 HOST_CC="/usr/bin/gcc"
 HOST_CXX="/usr/bin/g++"
-CMAKE="$TOOLS_DIR/bin/cmake"
+CMAKE_VERSION="v3.30.1"
 
 # ------------------------------------------------------------- helper functions
 
@@ -139,15 +180,19 @@ install_dependences()
 build_cmake()
 {
     local VERSION="$1"
+    local PREFIX="$2"
     local FILE_BASE="cmake-$VERSION"
     local FILE="$FILE_BASE.tar.gz"
+    local CMAKE_BUILD_D="$TMPD/build-cmake"
 
-    cd "$TMPD"
+    rm -rf "$CMAKE_BUILD_D"
+    mkdir -p "$CMAKE_BUILD_D"
+    cd "$CMAKE_BUILD_D"
     wget "https://github.com/Kitware/CMake/archive/refs/tags/$VERSION.tar.gz"
     cat "$VERSION.tar.gz" | gzip -dc | tar -xf -
 
     cd "CMake-${VERSION:1}"
-    nice ./configure --prefix="$TOOLS_DIR"
+    nice ./configure --prefix="$PREFIX"
     nice make -j$(nproc)
     nice make install
 }
@@ -161,16 +206,19 @@ build_llvm()
     local LLVM_DIR="llvm"
 
     # First ensure we have a recent cmake
-    if [ ! -x "$CMAKE" ] || [ "$FORCE" = "True" ] ; then
-        build_cmake v3.25.1
+    if [ ! -x "$CMAKE" ] || [ "$FORCE_INSTALL" = "True" ] ; then
+        CMAKE_PREFIX="$(dirname "$(dirname "$CMAKE")")"
+        build_cmake "$CMAKE_VERSION" "$CMAKE_PREFIX"
     fi
     
     local SRC_D="$TMPD/$LLVM_DIR"
     local BUILD_D="$TMPD/build-llvm-${VERSION}"
-    
+    local LOGD="$TMPD/llvm-build-logs/$VERSION"
+
     rm -rf "$BUILD_D"
     mkdir -p "$SRC_D"
     mkdir -p "$BUILD_D"
+    mkdir -p "$LOGD"
 
     cd "$SRC_D"
 
@@ -184,7 +232,7 @@ build_llvm()
 
     local EXTRA_LLVM_DEFINES=""
     local LLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld"
-    local LLVM_ENABLE_RUNTIMES_ARG="-D LLVM_ENABLE_RUNTIMES=compiler-rt;libc;libcxx;libcxxabi;libunwind"
+    local LLVM_ENABLE_RUNTIMES_ARG="-D LLVM_ENABLE_RUNTIMES=compiler-rt;libcxx;libcxxabi;libunwind"
     local MAJOR_VERSION="$(echo "$VERSION" | awk -F. '{ print $1 }')"
     if (( $MAJOR_VERSION <= 12 )) ; then
         LLVM_ENABLE_PROJECTS="$LLVM_ENABLE_PROJECTS;compiler-rt;libcxx;libcxxabi;libunwind;clang-tools-extra"
@@ -205,10 +253,11 @@ build_llvm()
          -D LLVM_BUILD_LLVM_DYLIB=Yes \
          -D LLVM_TARGETS_TO_BUILD="X86;BPF;AArch64;ARM;WebAssembly" \
          -D CMAKE_INSTALL_PREFIX:PATH="$INSTALL_PREFIX" \
-         $SRC_D/llvm-project/llvm
+         $SRC_D/llvm-project/llvm \
+         > >(tee $LOGD/stdout.text) 2> >(tee $LOGD/stderr.text >&2)
 
-    nice make -j$(nproc) > >(tee -a $BUILD_D/stdout.text) 2> >(tee -a $BUILD_D/stderr.text >&2)
-    nice make install    > >(tee -a $BUILD_D/stdout.text) 2> >(tee -a $BUILD_D/stderr.text >&2)
+    nice make -j$(nproc) > >(tee -a $LOGD/stdout.text) 2> >(tee -a $LOGD/stderr.text >&2)
+    nice make install    > >(tee -a $LOGD/stdout.text) 2> >(tee -a $LOGD/stderr.text >&2)
 }
 
 # -------------------------------------------------------------------------- gcc
@@ -219,18 +268,26 @@ build_gcc()
     local VERSION="$2"
     
     local MAJOR_VERSION="$(echo "$VERSION" | sed 's,\..*$,,')"
-    local SRCD="$TMPD/$SUFFIX"
-
+    local SRCD="$TMPD"
+    local LOGD="$TMPD/gcc-build-logs/$VERSION"
+    
     mkdir -p "$SRCD"
+    mkdir -p "$LOGD"
+    
     cd "$SRCD"
     if [ ! -d "gcc" ] ;then
         git clone https://github.com/gcc-mirror/gcc.git
     fi
     
     cd gcc
+
+    # In case this file was edited by a previous run
+    git checkout contrib/download_prerequisites
+
+    # Now get the correct release
     git fetch
     git checkout releases/gcc-${VERSION}
-
+    
     if (( $MAJOR_VERSION <= 9 )) ; then
         # some network configurations have trouble with 'ftp://' urls
         sed -i contrib/download_prerequisites -e '/base_url=/s/ftp/http/'
@@ -239,8 +296,8 @@ build_gcc()
 
     if [ -d "$SRCD/build" ] ; then rm -rf "$SRCD/build" ; fi
     mkdir -p "$SRCD/build"
-    cd "$SRCD/build"
-
+    cd "$SRCD/build"    
+    
     export CC=$HOST_CC
     export CXX=$HOST_CXX
     nice ../gcc/configure \
@@ -250,10 +307,11 @@ build_gcc()
          --program-suffix=-${MAJOR_VERSION} \
          --enable-checking=release \
          --with-gcc-major-version-only \
-         --disable-nls
+         --disable-nls \
+         > >(tee $LOGD/stdout.text) 2> >(tee $LOGD/stderr.text >&2)
     
-    nice make -j$(nproc) > >(tee -a $SRCD/build/stdout.text) 2> >(tee -a $SRCD/build/stderr.text >&2)
-    nice make install    > >(tee -a $SRCD/build/stdout.text) 2> >(tee -a $SRCD/build/stderr.text >&2)
+    nice make -j$(nproc) > >(tee -a $LOGD/stdout.text) 2> >(tee -a $LOGD/stderr.text >&2)
+    nice make install    > >(tee -a $LOGD/stdout.text) 2> >(tee -a $LOGD/stderr.text >&2)
 }
 
 # ------------------------------------------------------------------------ parse
@@ -311,6 +369,16 @@ if [ "$COMPILER" = "" ] ; then
     echo "Must specify a compiler to build!" 1>&2 && exit 1
 fi
 
+FULL_NAME="${COMPILER}-${VERSION}--${MACHINE}--${VENDOR_TAG}--${PLATFORM}"
+# Check compatability
+if ! check_compatibility $VENDOR_TAG $COMPILER $VERSION ; then
+    echo "Incompatible build, ${COMPILER}-${VERSION} does not build on ${VENDOR_TAG}"
+    exit 0
+fi
+
+TOOLS_DIR="$TOOLCHAINS_DIR/tools"
+CMAKE="$TOOLS_DIR/cmake/${VENDOR_TAG}--${CMAKE_VERSION}/bin/cmake"
+
 SCRIPT_NAME="$(basename "$THIS_SCRIPT")"
 if [ "$CLEANUP" = "True" ] ; then
     TMPD="$(mktemp -d /tmp/$(basename "$SCRIPT_NAME" .sh).XXXXXX)"
@@ -329,7 +397,7 @@ cleanup()
 }
 
 # ----------------------------------------------------------------------- action
-INSTALL_PREFIX="${TOOLCHAINS_DIR}/${COMPILER}-${VERSION}--${MACHINE}--${VENDOR_TAG}--${PLATFORM}"
+INSTALL_PREFIX="${TOOLCHAINS_DIR}/${FULL_NAME}"
 if [ "$FORCE_INSTALL" = "True" ] || [ ! -x "$INSTALL_PREFIX/bin/$EXEC" ] ; then
     ensure_directory "$TOOLCHAINS_DIR"
     build_$COMPILER "$INSTALL_PREFIX" $VERSION

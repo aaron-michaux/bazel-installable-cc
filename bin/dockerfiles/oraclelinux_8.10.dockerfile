@@ -1,6 +1,4 @@
-ARG VENDOR=oraclelinux
-ARG RELEASE=8.10
-FROM ${VENDOR}:${RELEASE}
+FROM oraclelinux:8.10
 
 #     dejagnu lsb_release
 RUN yum install -y \
