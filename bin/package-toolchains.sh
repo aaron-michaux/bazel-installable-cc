@@ -48,11 +48,17 @@ archive_it()
     local TOOL="$1"
     local TOOLROOT="${TOOL}--${MACHINE}--${VENDOR_TAG}--${PLATFORM}"
     local ARCHIVE="${TOOLROOT}.tar.xz"
-    mkdir -p "$TOOLCHAINS_DIR"
-    cd "$TOOLCHAINS_DIR"
+
+    if ! "$SCRIPT_DIR/build-toolchain.sh" --check-compatibility-only "$TOOL" ; then
+        echo "invalid $TOOLROOT, skipping (incompatible)"
+        return 0
+    fi
+    
+    mkdir -p "$TOOLCHAIN_ROOT"
+    cd "$TOOLCHAIN_ROOT"
     if [ ! -d "$TOOLROOT" ] ; then
         echo "archive $TOOLROOT, skipping (directory missing)"
-        return 0
+        return 1
     elif [ -f "$ARCHIVE.sha256" ] ; then
         if [ "$(sha256sum "$ARCHIVE")" = "$(cat $ARCHIVE.sha256)" ] ; then
             echo "archive $TOOLROOT, skipping (already done)"
@@ -69,6 +75,9 @@ build_it()
     local TOOL="$1"
     cd "$SCRIPT_DIR"
     echo "build $TOOL"
+    [ "$TOOLCHAIN_ROOT" = "" ] \
+        && TOOLCHAIN_ROOT_ARG="" \
+        || TOOLCHAIN_ROOT_ARG="--toolchain-root $TOOLCHAIN"
     ./build-toolchain.sh $CLEANUP_ARG $INSTALL_ARG $TOOLCHAIN_ROOT_ARG --build-tmp-dir $BUILD_TMPD_BASE "$TOOL"    
 }
 
@@ -103,7 +112,7 @@ HOSTS=
 DOCKER_COMMAND_ARGS=""
 INSTALL_ARG=""
 BUILD_TMPD_BASE="/tmp/${USER}-toolchains"
-TOOLCHAIN_ROOT_ARG=""
+TOOLCHAIN_ROOT="$BUILD_TMPD_BASE"
 
 for ARG in "$@" ; do
     [ "$ARG" = "-h" ] || [ "$ARG" = "--help" ] && show_help && exit 0
@@ -126,8 +135,8 @@ while (( $# > 0 )) ; do
     [ "$ARG" = "--no-cleanup" ] && CLEANUP_ARG="$ARG" && continue
     [ "$ARG" = "--install-dependencies" ] && INSTALL_ARG="$ARG" && continue
     [ "$ARG" = "--build-tmp-dir" ] && BUILD_TMPD_BASE="$1" && DOCKER_COMMAND_ARGS+="$1 " && shift && continue
-    [ "$ARG" = "--toolchain-root" ] && TOOLCHAIN_ROOT_ARG="$ARG $1" && DOCKER_COMMAND_ARGS+="$1 " && shift && continue
-    [ "$ARG" = "--base" ] && TOOLCHAIN_ROOT_ARG="$ARG $1" && BUILD_TMPD_BASE="$1" && DOCKER_COMMAND_ARGS+="$1 " && shift && continue
+    [ "$ARG" = "--toolchain-root" ] && TOOLCHAIN_ROOT="$1" && DOCKER_COMMAND_ARGS+="$1 " && shift && continue
+    [ "$ARG" = "--base" ] && TOOLCHAIN_ROOT="$1" && BUILD_TMPD_BASE="$1" && DOCKER_COMMAND_ARGS+="$1 " && shift && continue
     [ "$ARG" = ":all" ] && TOOLCHAIN="$ARG" && continue
     TOOLCHAIN+=" $ARG"
 done
@@ -148,7 +157,7 @@ else
 fi
 
 if echo "$HOSTS" | grep -q ":all" ; then
-    HOSTS="$(all_hosts | tr '\n' ' ')"
+    HOSTS="$(all_hosts | awk '{ print $1 }' | tr '\n' ' ')"
 elif [ "$HOSTS" != "" ] ; then
     for HOST in $HOSTS ; do
         if ! is_host "$HOST" ; then
@@ -198,15 +207,22 @@ if $DO_BUILD ; then
     done
 fi
 
+do_archive()
+{
+    local TOOL="$1"
+    archive_it "$TOOL" || HAS_ERROR="true"
+}
+
 if $DO_ARCHIVE && ! $HAS_ERROR ; then
     source "$SCRIPT_DIR/platform.sh"
     for TOOL in $TOOLCHAINS ; do
-        archive_it "$TOOL" &
+        do_archive "$TOOL" &
     done
     wait
 fi
 
 echo "all jobs complete"
 
+$HAS_ERROR && exit 1 || exit 0
 
 

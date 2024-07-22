@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eux
+set -eu
 
 THIS_SCRIPT="$([ -L "$0" ] && readlink -f "$0" || echo "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$THIS_SCRIPT")" ; pwd -P)"
@@ -22,6 +22,8 @@ show_help()
       --no-cleanup            Do not remove temporary files after building
       --force                 Force reinstall of target
       --toolchain-root        Overwrite default toolchain directory '$TOOLCHAINS_DIR'
+
+     
 
    Tool:
 
@@ -55,9 +57,9 @@ EOF
 # +-----------------------+-------+-------+
 # | Debian Trixie (gcc13) | 12-14 |   9   |
 # | Ubuntu 24.04  (gcc13) | 12-13 |   9   |
-# | Ubuntu 22.04  (gcc11) |   ?   |   ?   |
+# | Ubuntu 22.04  (gcc11) |   -   |   -   |
 # | OL 8.9         (gcc8) |   -   |   -   |
-# | OL 8.10        (gcc8) | 13,14 |   -   |
+# | OL 8.10        (gcc8) |   -   |   -   |
 # +-----------------------+-------+-------+
 #
 # gcc9      incompatible with newer glibc
@@ -82,6 +84,16 @@ check_compatibility()
     fi
 
     if [ "$VENDOR_TAG" = "ubuntu-jammy" ] ; then
+        [ "$COMPILER" = "gcc" ]  && (( $MAJOR_VERSION >=  9 )) && return 0
+        [ "$COMPILER" = "llvm" ] && (( $MAJOR_VERSION >= 12 )) && return 0
+    fi
+
+    if [ "$VENDOR_TAG" = "ol-8.10" ] ; then
+        [ "$COMPILER" = "gcc" ]  && (( $MAJOR_VERSION >=  9 )) && return 0
+        [ "$COMPILER" = "llvm" ] && (( $MAJOR_VERSION >= 12 )) && return 0
+    fi
+
+    if [ "$VENDOR_TAG" = "ol-8.9" ] ; then
         [ "$COMPILER" = "gcc" ]  && (( $MAJOR_VERSION >=  9 )) && return 0
         [ "$COMPILER" = "llvm" ] && (( $MAJOR_VERSION >= 12 )) && return 0
     fi
@@ -327,6 +339,7 @@ INSTALL_DEPS="False"
 TMPD=""
 COMPILER=""
 BUILD_TMPD_BASE="/tmp/${PLATFORM_USER}-toolchains"
+CHECK_ONLY="False"
 
 while (( $# > 0 )) ; do
     ARG="$1"
@@ -338,7 +351,8 @@ while (( $# > 0 )) ; do
     [ "$ARG" = "--toolchain-root" ] && export TOOLCHAINS_DIR="$1" && shift && continue
     [ "$ARG" = "--build-tmp-dir" ] && BUILD_TMPD_BASE="$1" && shift && continue
     [ "$ARG" = "--base" ] && export TOOLCHAINS_DIR="$1" && BUILD_TMPD_BASE="$1" && shift && continue
-
+    [ "$ARG" = "--check-compatibility-only" ] && CHECK_ONLY="True" && continue
+    
     if [ "${ARG:0:3}" = "gcc" ] ; then
         COMPILER="gcc"
         VERSION="${ARG:4}"
@@ -357,6 +371,10 @@ while (( $# > 0 )) ; do
 
     echo "unexpected argument: '$ARG'" 1>&2 && exit 1
 done
+
+if [ "$CHECK_ONLY" = "True" ] ; then
+    check_compatibility $VENDOR_TAG $COMPILER $VERSION && exit 0 || exit 1
+fi
 
 if [ "$INSTALL_DEPS" = "True" ] ; then
     install_dependences
