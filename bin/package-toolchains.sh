@@ -77,7 +77,7 @@ build_it()
     echo "build $TOOL"
     [ "$TOOLCHAIN_ROOT" = "" ] \
         && TOOLCHAIN_ROOT_ARG="" \
-        || TOOLCHAIN_ROOT_ARG="--toolchain-root $TOOLCHAIN"
+        || TOOLCHAIN_ROOT_ARG="--toolchain-root $TOOLCHAIN_ROOT"
     ./build-toolchain.sh $CLEANUP_ARG $INSTALL_ARG $TOOLCHAIN_ROOT_ARG --build-tmp-dir $BUILD_TMPD_BASE "$TOOL"    
 }
 
