@@ -15,6 +15,7 @@ all_hosts()
 oraclelinux:8.9    ol8.9
 oraclelinux:8.10   ol8.10
 debian:trixie      trixie
+ubuntu:20.04       focal
 ubuntu:22.04       jammy
 ubuntu:24.04       noble
 EOF
