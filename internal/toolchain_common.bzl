@@ -859,6 +859,57 @@ def make_base_features(ctx):
         feature(name = "strip_debug_symbols", flag_sets = strip_debug_symbols_flags(ctx)),
     ]
 
+def resolve_toolchain_paths(compiler, install_root, prefix, suffix):
+    """
+    Calculates the toolchain paths as specified by the compiler context
+
+    Args:
+      ctx: The compiler context
+
+    Returns:
+      A list of 'tool_path' for a 'gcc' or 'clang' compiler
+    """
+
+    if compiler != "gcc" and compiler != "clang":
+        fail("Compiler must be 'gcc' or 'clang'")
+    
+    install_root = install_root if install_root else "/usr"
+    bindir = "bin"
+    prefix = prefix if prefix else ""
+    suffix = suffix if suffix else ""
+
+    base_path = install_root + "/" + bindir + "/" + prefix
+    if compiler == "gcc":
+        # gcc
+        return {
+            "ar": (base_path + "gcc-ar" + suffix),
+            "cpp": (base_path + "g++" + suffix),
+            "dwp": (base_path + "dwp" + suffix),
+            "gcc": (base_path + "gcc" + suffix),
+            "gcov": (base_path + "gcov" + suffix),
+            "ld": (base_path + "ld" + suffix),
+            "nm": (base_path + "gcc-nm" + suffix),
+            "objcopy": (base_path + "objcopy" + suffix),
+            "objdump": (base_path + "objdump" + suffix),
+            "strip": (base_path + "strip" + suffix),
+            "compat-ld": ("/bin/false"),
+        }
+    
+    # Clang
+    return {
+        "ar": (base_path + "llvm-ar" + suffix),
+        "cpp": (base_path + "clang++" + suffix),
+        "dwp": (base_path + "llvm-dwp" + suffix),
+        "gcc": (base_path + "clang" + suffix),
+        "gcov": ("/bin/false"),
+        "ld": (base_path + "lld" + suffix),
+        "nm": (base_path + "llvm-nm" + suffix),
+        "objcopy": (base_path + "llvm-objcopy" + suffix),
+        "objdump": (base_path + "llvm-objdump" + suffix),
+        "strip": (base_path + "llvm-strip" + suffix),
+        "compat-ld": ("/bin/false"),
+    }
+
 def calculate_toolchain_paths(ctx):
     """
     Calculates the toolchain paths as specified by the compiler context
@@ -872,43 +923,10 @@ def calculate_toolchain_paths(ctx):
 
     if ctx.attr.tool_paths:
         return ctx.attr.tool_paths
-
-    install_root = ctx.attr.install_root if ctx.attr.install_root else "/usr"
-    bindir = "bin"
-    prefix = ctx.attr.prefix if ctx.attr.prefix else ""
-    suffix = ctx.attr.suffix if ctx.attr.suffix else ""
-
-    base_path = install_root + "/" + bindir + "/" + prefix
-    if ctx.attr.compiler == "gcc":
-        # gcc
-        return [
-            tool_path(name = "ar", path = base_path + "gcc-ar" + suffix),
-            tool_path(name = "cpp", path = base_path + "g++" + suffix),
-            tool_path(name = "dwp", path = base_path + "dwp" + suffix),
-            tool_path(name = "gcc", path = base_path + "gcc" + suffix),
-            tool_path(name = "gcov", path = base_path + "gcov" + suffix),
-            tool_path(name = "ld", path = base_path + "ld" + suffix),
-            tool_path(name = "nm", path = base_path + "gcc-nm" + suffix),
-            tool_path(name = "objcopy", path = base_path + "objcopy" + suffix),
-            tool_path(name = "objdump", path = base_path + "objdump" + suffix),
-            tool_path(name = "strip", path = base_path + "strip" + suffix),
-            tool_path(name = "compat-ld", path = "/bin/false"),
-        ]
-
-    # Clang
-    return [
-        tool_path(name = "ar", path = base_path + "llvm-ar" + suffix),
-        tool_path(name = "cpp", path = base_path + "clang++" + suffix),
-        tool_path(name = "dwp", path = base_path + "llvm-dwp" + suffix),
-        tool_path(name = "gcc", path = base_path + "clang" + suffix),
-        tool_path(name = "gcov", path = "/bin/false"),
-        tool_path(name = "ld", path = base_path + "lld" + suffix),
-        tool_path(name = "nm", path = base_path + "llvm-nm" + suffix),
-        tool_path(name = "objcopy", path = base_path + "llvm-objcopy" + suffix),
-        tool_path(name = "objdump", path = base_path + "llvm-objdump" + suffix),
-        tool_path(name = "strip", path = base_path + "llvm-strip" + suffix),
-        tool_path(name = "compat-ld", path = "/bin/false"),
-    ]
+    tools = resolve_toolchain_paths(ctx.attr.compiler, ctx.attr.install_root,
+                                    ctx.attr.prefix, ctx.attr.suffix)
+    return [tool_path(name = key, path = value) for key, value in tools.items()]
+    
 
 COMMON_ATTRIBUTES = {
     "cpu": attr.string(mandatory = True),
@@ -931,6 +949,7 @@ COMMON_ATTRIBUTES = {
 
     # Misc clags
     "warning_flags": attr.string_list(),  # For the feature: --features=warnings
+    "extra_sys_include_dirs": attr.string_list(),
     "extra_include_directories": attr.string_list(),
     "builtin_sysroot": attr.string(),
 
@@ -956,7 +975,12 @@ COMMON_ATTRIBUTES = {
 def _impl(ctx):
     tool_paths = calculate_toolchain_paths(ctx)
     extra_inc_dirs = ctx.attr.extra_include_directories if ctx.attr.extra_include_directories else []
-    build_inc_dirs = ctx.attr.cxx_builtin_include_directories + extra_inc_dirs
+    extra_sys_include_dirs = ctx.attr.extra_sys_include_dirs if ctx.attr.extra_sys_include_dirs else []
+    builtin_inc_dirs = ctx.attr.cxx_builtin_include_directories + extra_inc_dirs + extra_sys_include_dirs
+
+    # At this stage, ensure that we have all builtin directories that the toolchain itself expects
+    
+    
     features = make_base_features(ctx)
     return [
         cc_common.create_cc_toolchain_config_info(
@@ -971,7 +995,7 @@ def _impl(ctx):
             abi_libc_version = ctx.attr.abi_libc_version,
             tool_paths = tool_paths,
             features = features,
-            cxx_builtin_include_directories = build_inc_dirs,
+            cxx_builtin_include_directories = builtin_inc_dirs,
         ),
     ]
 
@@ -1017,6 +1041,7 @@ def calculate_clang_include_directories(clang_installation_path, architecture, v
 
     return [clang_installation_path + "/" + x for x in paths]
 
+
 def compiler_default_directories(compiler, install_root, architecture, version):
     """
     Calculate the default (builtin) c++ system header directories
@@ -1056,6 +1081,7 @@ def make_toolchain_config(
         toolchain_identifier = None,
         supports_start_end_lib = True,
         cxx_builtin_include_directories = None,
+        extra_sys_include_dirs = None,
         extra_include_directories = None,
         host_system_name = "local",
         target_system_name = "local",
@@ -1078,6 +1104,7 @@ def make_toolchain_config(
       architecture: Something like 'x86_64-linux-gnu'
       supports_start_end_lib: Boolean that tells bazel to skip building static libraries if possible
       cxx_builtin_include_directories: C++ system include directories; Pass 'None' for defaults
+      extra_sys_include_dirs: Additional sysinclude directories
       extra_include_directories: C++ include directories to add builtin include directories
       toolchain_identifier: Default is 'local_gcc' or 'local_clang'
       host_system_name: Defaults to 'local'
@@ -1099,7 +1126,7 @@ def make_toolchain_config(
     # Calculate the include directories
     if not cxx_builtin_include_directories:
         cxx_builtin_include_directories = compiler_default_directories(compiler, install_root, architecture, version)
-
+        
     # In the call below to `unix_toolchain_config`, we unpack **kargs.
     # This will throw an error if `kargs` wants to override any of the other
     # arguments. So we collate all arguments together directly in kargs.
@@ -1132,6 +1159,7 @@ def make_toolchain_config(
     update_dict(final_kargs, "abi_libc_version", abi_libc_version)
     update_dict(final_kargs, "supports_start_end_lib", supports_start_end_lib)
     update_dict(final_kargs, "cxx_builtin_include_directories", cxx_builtin_include_directories)
+    update_dict(final_kargs, "extra_sys_include_dirs", extra_sys_include_dirs)
     update_dict(final_kargs, "extra_include_directories", extra_include_directories)
 
     unix_toolchain_config(**final_kargs)
@@ -1156,6 +1184,32 @@ def make_toolchain(name, toolchain_config, host_platform, target_platform):
         toolchain = ":" + name + "_cc_toolchain",
         toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
     )
+
+def decompose_install_root(install_root, operating_system):
+    install_root_parts = install_root.split("/")
+    basename = install_root_parts[-1]
+    is_gcc = basename.startswith("gcc")
+    is_clang = basename.startswith("llvm") or basename.startswith("clang")
+    if not is_clang and not is_gcc:
+        fail("ERROR: could not deduce clang/gcc from install_root: {}".format(install_root))
+
+    # Compiler version
+    parts = basename.split("-") if (operating_system == "linux") else basename.split("@")
+    if len(parts) > 1:
+        version = parts[1]
+    if not version:
+        fail("ERROR: could not deduce clang/gcc version from install_root: {}".format(install_root))
+    major_version = version.split(".")[0]
+    suffix = ("-" + major_version) if is_gcc else ""
+    compiler = "gcc" if is_gcc else "clang"
+    prefix = None
+    return compiler, version, major_version, prefix, suffix
+
+
+def resolve_toolchain_tools(install_root, operating_system):
+    compiler, version, major_version, prefix, suffix = decompose_install_root(install_root, operating_system)
+    return resolve_toolchain_paths(compiler, install_root, prefix, suffix)
+
 
 def make_toolchain_from_install_root(
         name,
@@ -1193,21 +1247,9 @@ def make_toolchain_from_install_root(
             cxx_builtin_include_directories = host_cxx_builtin_dirs,
         )
     else:
-        install_root_parts = install_root.split("/")
-        basename = install_root_parts[-1]
-        is_gcc = basename.startswith("gcc")
-        is_clang = basename.startswith("llvm") or basename.startswith("clang")
-        if not is_clang and not is_gcc:
-            fail("ERROR: could not deduce clang/gcc from install_root: {}".format(install_root))
-
-        # Compiler version
-        parts = basename.split("-") if (operating_system == "linux") else basename.split("@")
-        if len(parts) > 1:
-            version = parts[1]
-        if not version:
-            fail("ERROR: could not deduce clang/gcc version from install_root: {}".format(install_root))
-        major_version = version.split(".")[0]
-        suffix = ("-" + major_version) if is_gcc else ""
+        
+        compiler, version, major_version, prefix, suffix = decompose_install_root(install_root, operating_system)
+        is_gcc = compiler == "gcc"
 
         # Architecture, suffix, and cxx_builtin_include_dirs is done differently
         # for brew/macos
@@ -1223,12 +1265,13 @@ def make_toolchain_from_install_root(
 
         make_toolchain_config(
             name = config_label,
-            compiler = "gcc" if is_gcc else "clang",
+            compiler = compiler,
             version = version,
             install_root = install_root,
             architecture = architecture,
             suffix = suffix,
             additional_args = additional_args,
+            extra_sys_include_dirs = host_cxx_builtin_dirs,
             cxx_builtin_include_directories = cxx_builtin_include_directories,
         )
 

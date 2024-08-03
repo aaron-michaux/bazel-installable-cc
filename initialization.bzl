@@ -12,6 +12,8 @@ initialize_toolchain(
 )
 """
 
+load("//internal:toolchain_common.bzl", "resolve_toolchain_tools")
+
 # -------------------------------------------------------------- starlark helpers
 
 def _make_info_warn_script(repo_ctx, filename, level, colour_id):
@@ -436,19 +438,23 @@ def _initialization_impl(repo_ctx):
     is_linux = (os == "linux")
     is_darwin = (os == "darwin")
 
+    additional_host_builtin_dirs = repo_ctx.attr.additional_host_builtin_dirs if repo_ctx.attr.additional_host_builtin_dirs else []
+    
     # Basic environment
     bazel_cache_dir = _get_bazel_cache_dir(repo_ctx)
     toolchain_install_prefix = bazel_cache_dir + "/toolchains"
     download_cache_dir = bazel_cache_dir + "/toolchains/downloads"
-    host_cxx_inc_dirs = _get_host_cxx_inc_dirs(repo_ctx)
+    host_cxx_inc_dirs = None
+    
     host_machine = _get_host_machine(repo_ctx)
-
+    
     # Determine the toolchain
     use_host_toolchain = (compiler_env == "host")
     toolchain_directory = ""
     if use_host_toolchain:
         # These values are necessary to configure the host toolchain
         toolchain_directory = "/usr"
+        host_cxx_inc_dirs = _get_host_cxx_inc_dirs(repo_ctx)
         info(repo_ctx, "selecting host compiler")
     elif is_linux:
         archive_name, toolname, hash = _determine_toolchain_linux(repo_ctx)
@@ -464,6 +470,8 @@ def _initialization_impl(repo_ctx):
         )
 
         toolchain_directory = _get_install_directory(toolchain_install_prefix, archive_name)
+        tools = resolve_toolchain_tools(toolchain_directory, os)
+        host_cxx_inc_dirs = _get_compiler_inc_dirs(repo_ctx, tools["cpp"])
         info(repo_ctx, "selecting compiler: {}".format(repo_ctx.path(toolchain_directory).basename))
     elif is_darwin:
         # This determines the toolname, and installs it (using brew) is necessary
@@ -474,14 +482,14 @@ def _initialization_impl(repo_ctx):
 
         info(repo_ctx, "selecting compiler: {}".format(toolchain_version))
 
-    is_gcc = (use_host_toolchain or toolchain_directory.find("gcc") >= 0)
+    is_gcc = (use_host_toolchain or toolchain_directory.find("gcc") >= 0)    
 
     # Set up the BUILD template
     flags = repo_ctx.attr.toolchain_flags if repo_ctx.attr.toolchain_flags else []
     template_substitutions = {
         "%{toolchain_directory}": repr(toolchain_directory),
         "%{sysmachine}": repr(host_machine),
-        "%{host_cxx_builtin_dirs}": repr(host_cxx_inc_dirs),
+        "%{host_cxx_builtin_dirs}": repr(host_cxx_inc_dirs + additional_host_builtin_dirs),
         "%{use_host_compiler}": repr(use_host_toolchain),
         "%{toolchain_flags}": repr(flags),
         "%{os}": repr(os),
@@ -500,12 +508,13 @@ initialization = repository_rule(
         "toolchain_flags": attr.string_list_dict(mandatory = False),
         "no_check_certificate": attr.bool(mandatory = False),
         "download_attempts": attr.int(mandatory = False, default = 1),
+        "additional_host_builtin_dirs": attr.string_list(mandatory = False),
     },
 )
 
 # --------------------------------------------------------- initialize-toolchain
 
-def initialize_toolchain(name, urls, manifest, toolchain_flags = {}, no_check_certificate = False, download_attempts = 1):
+def initialize_toolchain(name, urls, manifest, toolchain_flags = {}, no_check_certificate = False, download_attempts = 1, additional_host_builtin_dirs = []):
     initialization(
         name = name,
         download_urls = urls,
@@ -513,4 +522,5 @@ def initialize_toolchain(name, urls, manifest, toolchain_flags = {}, no_check_ce
         toolchain_flags = toolchain_flags,
         no_check_certificate = no_check_certificate,
         download_attempts = download_attempts,
+        additional_host_builtin_dirs = additional_host_builtin_dirs,
     )
