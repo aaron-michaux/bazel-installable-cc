@@ -58,6 +58,7 @@ EOF
 # | Debian Trixie (gcc13) | 12-14 |   9   |
 # | Ubuntu 24.04  (gcc13) | 12-13 |   9   |
 # | Ubuntu 22.04  (gcc11) |   -   |   -   |
+# | Ubuntu 20.04   (gcc9) |   -   |   -   |
 # | OL 8.9         (gcc8) |   -   |   -   |
 # | OL 8.10        (gcc8) |   -   |   -   |
 # +-----------------------+-------+-------+
@@ -84,6 +85,11 @@ check_compatibility()
     fi
 
     if [ "$VENDOR_TAG" = "ubuntu-jammy" ] ; then
+        [ "$COMPILER" = "gcc" ]  && (( $MAJOR_VERSION >=  9 )) && return 0
+        [ "$COMPILER" = "llvm" ] && (( $MAJOR_VERSION >= 12 )) && return 0
+    fi
+
+    if [ "$VENDOR_TAG" = "ubuntu-focal" ] ; then
         [ "$COMPILER" = "gcc" ]  && (( $MAJOR_VERSION >=  9 )) && return 0
         [ "$COMPILER" = "llvm" ] && (( $MAJOR_VERSION >= 12 )) && return 0
     fi

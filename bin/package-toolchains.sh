@@ -36,6 +36,12 @@ show_help()
 
 $(all_hosts | awk '{ print $1 }' | sed 's,^,         ,')
 
+      Other options:
+
+          --cleanup
+          --no-cleanup
+          --base        Base directory for building toolchains, and installing them
+
    Examples:
 
       # Build and archive four toolchains; the archive step is done in parallel
