@@ -5,8 +5,8 @@ set -euo pipefail
 THIS_SCRIPT="$([ -L "$0" ] && readlink -f "$0" || echo "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$THIS_SCRIPT")" ; pwd -P)"
 
-LLVMS="llvm-18.1.8 llvm-17.0.6 llvm-16.0.6 llvm-15.0.7 llvm-14.0.6 llvm-13.0.1 llvm-12.0.1"
-GCCS="gcc-14.1.0 gcc-13.3.0 gcc-12.4.0 gcc-11.5.0 gcc-10.5.0 gcc-9.5.0"
+LLVMS="llvm-19.1.2 llvm-18.1.8 llvm-17.0.6 llvm-16.0.6 llvm-15.0.7 llvm-14.0.6 llvm-13.0.1 llvm-12.0.1"
+GCCS="gcc-14.2.0 gcc-13.3.0 gcc-12.4.0 gcc-11.5.0 gcc-10.5.0 gcc-9.5.0"
 
 all_hosts()
 {

@@ -6,6 +6,8 @@ THIS_SCRIPT="$([ -L "$0" ] && readlink -f "$0" || echo "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$THIS_SCRIPT")" ; pwd -P)"
 source "$SCRIPT_DIR/platform.sh"
 
+BUILD_TMPD_BASE="/tmp/${PLATFORM_USER}-toolchains"
+
 # ------------------------------------------------------------------------- Help
 
 show_help()
@@ -18,11 +20,12 @@ show_help()
 
       --install-dependencies  Install build dependencies before building
 
-      --cleanup               Remove temporary files after building
-      --no-cleanup            Do not remove temporary files after building
-      --force                 Force reinstall of target
-      --toolchain-root        Overwrite default toolchain directory '$TOOLCHAINS_DIR'
-
+      --cleanup                    Remove temporary files after building
+      --no-cleanup                 Do not remove temporary files after building
+      --force                      Force reinstall of target
+      --toolchain-root <dirname>   Overwrite default toolchain directory '$BUILD_TMPD_BASE'
+      --build-dir <dirname>        Overwrite default toolchain directory '$BUILD_TMPD_BASE'
+      --base <dirname>             Overwrite both build-dir and toolchain-root
      
 
    Tool:
@@ -35,10 +38,10 @@ show_help()
       # Install build dependencies; requires sudo or root
       > $(basename $0) --install-dependencies
 
-      # Install gcc version 13.1.0 to $TOOLCHAINS_DIR
+      # Install gcc version 13.1.0 to $BUILD_TMPD_BASE
       > $(basename $0) gcc-13.1.0
 
-      # Install llvm version 16.0.2 to $TOOLCHAINS_DIR
+      # Install llvm version 16.0.2 to $BUILD_TMPD_BASE
       > $(basename $0) llvm-16.0.2
 
    Repos:
@@ -321,6 +324,7 @@ build_gcc()
     nice ../gcc/configure \
          --prefix=${INSTALL_PREFIX} \
          --enable-languages=c,c++,objc,obj-c++ \
+         --enable-c99 \
          --disable-multilib \
          --program-suffix=-${MAJOR_VERSION} \
          --enable-checking=release \
