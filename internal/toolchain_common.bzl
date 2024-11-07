@@ -358,7 +358,7 @@ def tsan_flags(ctx):
         flag_set(
             actions = ALL_COMPILE_ACTIONS,
             flag_groups = ([flag_group(
-                flags = [
+                flags = (["-Wno-error=tsan"] if is_gcc else []) + [
                     "-O0",
                     "-g",
                     "-fno-optimize-sibling-calls",
