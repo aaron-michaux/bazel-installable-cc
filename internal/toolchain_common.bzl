@@ -608,6 +608,19 @@ def runtime_library_search_flags(ctx):
         ),
     ]
 
+def new_dtags(ctx, is_enable):
+    dtags_flag = "-Wl,--enable-new-dtags" if is_enable else "-Wl,--disable-new-dtags"
+    return [
+        flag_set(
+            actions = ALL_NON_STATIC_LINK_ACTIONS,
+            flag_groups = [
+                flag_group(
+                    flags = [dtags_flag]
+                )
+            ],
+        ),
+    ]
+
 # buildifier: disable=function-docstring
 def llvm_coverage_map_format_flags(ctx):
     return [
@@ -853,6 +866,8 @@ def make_base_features(ctx):
             enabled = True,
             flag_sets = runtime_library_search_flags(ctx),
         ),
+        feature(name = "enable_new_dtags", enabled = False, flag_sets = new_dtags(ctx, True)),
+        feature(name = "disable_new_dtags", enabled = False, flag_sets = new_dtags(ctx, False)),
 
         # Misc. Features
         feature(name = "coverage", flag_sets = coverage_flags(ctx), provides = ["profile"]),
