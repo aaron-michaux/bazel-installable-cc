@@ -729,6 +729,27 @@ def strip_debug_symbols_flags(ctx):
     ]
 
 # buildifier: disable=function-docstring
+def external_include_paths_flags(ctx):
+    return [
+        flag_set(
+            actions = [
+                ACTION_NAMES.preprocess_assemble,
+                ACTION_NAMES.c_compile,
+                ACTION_NAMES.cpp_compile,
+                ACTION_NAMES.cpp_header_parsing,
+                ACTION_NAMES.cpp_module_compile,                
+            ],
+            flag_groups = [
+                flag_group(
+                    flags = ["-isystem", "%{external_include_paths}"],
+                    iterate_over = "external_include_paths",
+                    expand_if_available = "external_include_paths",
+                )
+            ],
+        ),
+    ]
+
+# buildifier: disable=function-docstring
 def make_c_cxx_standards_features(ctx):
     c_standards = [
         "c89",
@@ -872,6 +893,8 @@ def make_base_features(ctx):
         # Misc. Features
         feature(name = "coverage", flag_sets = coverage_flags(ctx), provides = ["profile"]),
         feature(name = "strip_debug_symbols", flag_sets = strip_debug_symbols_flags(ctx)),
+
+        feature(name = "external_include_paths", enabled = True, flag_sets = external_include_paths_flags(ctx)),
     ]
 
 def resolve_toolchain_paths(compiler, install_root, prefix, suffix):
