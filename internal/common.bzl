@@ -88,6 +88,17 @@ collect_cc_dependencies = aspect(
 
 # -- For joining compiler commands with compiler_context flags
 
+def get_compiler_context_flags(compilation_context):
+    args = []
+    args += ["-D" + d for d in compilation_context.defines.to_list()] 
+    args += ["-D" + d for d in compilation_context.local_defines.to_list()]
+    args += ["-F" + f for f in compilation_context.framework_includes.to_list()]
+    args += ["-I" + i for i in compilation_context.includes.to_list()]
+    args += ["-iquote" + q for q in compilation_context.quote_includes.to_list()]
+    args += ["-isystem" + q for q in compilation_context.external_includes.to_list()]
+    args += ["-isystem" + s for s in compilation_context.system_includes.to_list()]
+    return args
+
 def append_compiler_context_flags(flags, compilation_context):
     """Adds the 'compilation context' flags to a list of compile flags.
 
@@ -98,14 +109,7 @@ def append_compiler_context_flags(flags, compilation_context):
     Returns:
       A full list of flags, including [-D..., -isystem..., ...] from the toolchain context
     """
-    args = [x for x in flags]
-    args += ["-D" + d for d in compilation_context.defines.to_list()]
-    args += ["-D" + d for d in compilation_context.local_defines.to_list()]
-    args += ["-F" + f for f in compilation_context.framework_includes.to_list()]
-    args += ["-I" + i for i in compilation_context.includes.to_list()]
-    args += ["-iquote" + q for q in compilation_context.quote_includes.to_list()]
-    args += ["-isystem" + s for s in compilation_context.system_includes.to_list()]
-    return args
+    return [x for x in flags] + get_compiler_context_flags(compilation_context)
 
 # -- Aspect to get everything about CC deps
 
@@ -113,6 +117,7 @@ CcRuleSetInfo = provider(
     "Rule info for cc build rules, necessary for regenerating compiler flags",
     fields = {
         "cc_infos": "a list of structs [{'kind', 'attr'}, ...]",
+        "lookup": "maps names => cc_infos",
     },
 )
 
@@ -137,9 +142,13 @@ def _calculate_toolchain_flags(ctx, action_name):
 
 def _collect_cc_actions_impl(target, ctx):
     collected = []
-    if is_cc_rule(ctx.rule) and is_workspace_target(target):
-        srcs = []
+    lookup = {}
+    
+    name = "@{}//{}:{}".format(ctx.label.workspace_name, ctx.label.package, ctx.label.name)
 
+    if is_cc_rule(ctx.rule) and name not in lookup: # and is_workspace_target(target):
+        srcs = []
+        
         if hasattr(ctx.rule.attr, "srcs"):
             for src in ctx.rule.attr.srcs:
                 srcs += [s for s in src.files.to_list() if is_valid_src_file(s)]
@@ -147,6 +156,7 @@ def _collect_cc_actions_impl(target, ctx):
         # Lazily generate the C/C++ flags for this rule, based on activated features
         cflags = None
         cxxflags = None
+        linkflags = None
         for src in srcs:
             if not cflags and is_c_file(src):
                 cflags = _calculate_toolchain_flags(ctx, ACTION_NAMES.c_compile)
@@ -162,19 +172,29 @@ def _collect_cc_actions_impl(target, ctx):
             cflags = cflags + ctx.rule.attr.copts
             cxxflags = cxxflags + ctx.rule.attr.copts
 
-        collected = [{
+        info = {
+            "name": name,
             "label": ctx.label,
             "kind": ctx.rule.kind,
             "attr": ctx.rule.attr,
             "srcs": srcs,
             "cflags": cflags,
             "cxxflags": cxxflags,
-        }]
+            "in_workspace": is_workspace_target(target),
+        }
+
+        lookup[name] = info
+        collected += [info]
+        
         if hasattr(ctx.rule.attr, "deps"):
             for dep in ctx.rule.attr.deps:
                 if CcRuleSetInfo in dep:
-                    collected += dep[CcRuleSetInfo].cc_infos
-    return [CcRuleSetInfo(cc_infos = collected)]
+                    for key, value in dep[CcRuleSetInfo].lookup.items():
+                        if key in lookup:
+                            continue
+                        lookup[key] = value
+                        collected += [value]
+    return [CcRuleSetInfo(cc_infos = collected, lookup = lookup)]
 
 collect_cc_actions = aspect(
     implementation = _collect_cc_actions_impl,
