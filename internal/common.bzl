@@ -133,6 +133,22 @@ def append_compiler_context_flags(flags, compilation_context):
     """
     return [x for x in flags] + get_compiler_context_flags(compilation_context)
 
+def _uniqify_list(items):
+    set = {}
+    out = []
+    for item in items:
+        if item in set:
+            continue
+        set[item] = True
+        out += [item]
+    return out
+
+def _file_to_label(filename):
+    idx = filename.rfind("/")
+    if idx >= 0:
+        return "//{}:{}".format(filename[0:idx], filename[idx+1:])
+    return "//{}".format(filename)
+
 # -- Aspect to get everything about CC deps
 
 CcRuleSetInfo = provider(
@@ -162,7 +178,7 @@ def _calculate_toolchain_flags(ctx, action_name):
     )
     return flags
 
-def _collect_cc_actions_impl(target, ctx):
+def collect_cc_actions_impl(target, ctx):
     collected = []
     lookup = {}
     
@@ -191,16 +207,11 @@ def _collect_cc_actions_impl(target, ctx):
             linkflags = _calculate_toolchain_flags(ctx, ACTION_NAMES.cpp_link_executable)
             
         # Add per-rule copts
-        copts = []
-        conlyopts = []
-        cxxopts = []
-        if hasattr(ctx.rule.attr, "copts"):
-            copts = ctx.rule.attr.copts
-        if hasattr(ctx.rule.attr, "conlyopts"):
-            conlyopts = ctx.rule.attr.conlyopts
-        if hasattr(ctx.rule.attr, "cxxopts"):
-            cxxopts = ctx.rule.attr.cxxopts
-
+        copts = ctx.rule.attr.copts if hasattr(ctx.rule.attr, "copts") else []
+        conlyopts = ctx.rule.attr.conlyopts if hasattr(ctx.rule.attr, "conlyopts") else []
+        cxxopts = ctx.rule.attr.cxxopts if hasattr(ctx.rule.attr, "cxxopts") else []
+        linkopts = ctx.rule.attr.linkopts if hasattr(ctx.rule.attr, "linkopts") else []
+        
         cflags = cflags + copts + conlyopts
         cxxflags = cxxflags + copts + cxxopts
             
@@ -217,29 +228,77 @@ def _collect_cc_actions_impl(target, ctx):
             "copts": copts,
             "conlyopts": conlyopts,
             "cxxopts": cxxopts,
+            "linkopts": linkopts,
             "in_workspace": is_workspace_target(target),
         }
 
         lookup[name] = info
         collected += [info]
-        
+
         if hasattr(ctx.rule.attr, "deps"):
             for dep in ctx.rule.attr.deps:
                 if CcRuleSetInfo in dep:
-                    for key, value in dep[CcRuleSetInfo].lookup.items():
+                    for key, value in dep[CcRuleSetInfo].lookup.items():                        
                         if key in lookup:
                             continue
+                        # print("KEY: ", key)
                         lookup[key] = value
                         collected += [value]
-    return [CcRuleSetInfo(cc_infos = collected, lookup = lookup)]
+
+        out_infos = [x for x in collected if x["in_workspace"]]
+        out_srcs = [x for infos in out_infos for x in infos["srcs"]]
+        out_hdrs = [x for infos in out_infos for x in infos["hdrs"]]
+        out_all = out_srcs + out_hdrs
+
+        textual_hdrs = [_file_to_label(f.short_path) for f in out_all]
+        
+        all_copts = _uniqify_list([x for i in out_infos for x in i["copts"]])
+        all_conlyopts = _uniqify_list([x for i in out_infos for x in i["conlyopts"]])
+        all_cxxopts = _uniqify_list([x for i in out_infos for x in i["cxxopts"]])
+        all_linkopts = _uniqify_list([x for i in out_infos for x in i["linkopts"]])
+
+        all_deps = [i["name"] for i in collected if not i["in_workspace"]]
+        
+        # Make the Unity cpp file
+        include_stmts = ["#include \"" + file.path + "\"" for file in out_srcs]
+        unity_src_file = ctx.actions.declare_file(ctx.label.name + ".unity.cpp")
+        ctx.actions.write(unity_src_file, "\n".join(include_stmts))
+
+        # Make the Unity BUILD file
+        build_file_contents = """
+cc_library(
+    name = "{0}_lib",
+    srcs = ["{0}.unity.cpp"],
+    copts = {1},
+    conlyopts = {2},
+    cxxopts = {3},
+    linkopts = {4},
+    textual_hdrs = {5},
+    deps = {6},
+    visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "{0}",
+    deps = [":{0}_lib"],
+)
+        """.format(ctx.label.name,
+                   all_copts, all_conlyopts, all_cxxopts, all_linkopts, textual_hdrs, all_deps)
+        unity_build_file = ctx.actions.declare_file(ctx.label.name + ".unity.BUILD.bazel")
+        ctx.actions.write(unity_build_file, build_file_contents)
+                    
+    return [
+        CcRuleSetInfo(cc_infos = collected, lookup = lookup),
+        OutputGroupInfo(unity_files = depset([unity_src_file, unity_build_file])),
+    ]
 
 collect_cc_actions = aspect(
-    implementation = _collect_cc_actions_impl,
+    implementation = collect_cc_actions_impl,
     fragments = ["cpp"],
     attr_aspects = ["deps"],
     attrs = {
         "_cc_toolchains": attr.label(default = Label("@bazel_tools//tools/cpp:current_cc_toolchain")),
     },
-    provides = [CcRuleSetInfo],
+    provides = [CcRuleSetInfo, OutputGroupInfo],
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )
