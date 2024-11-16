@@ -121,7 +121,7 @@ def _clang_tidy_check_impl(ctx):
     for cc_info, compilation_context in cc_infos:
         label = cc_info["label"]
         name = "@{}//{}:{}".format(label.workspace_name, label.package, label.name)
-        if not name in cc_dict:
+        if not name in cc_dict and cc_info["in_workspace"]:
             cc_dict[name] = cc_info
 
             # Run clang tidy on this cc_rule

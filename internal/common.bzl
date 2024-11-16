@@ -49,7 +49,12 @@ def is_valid_src_hdr_file(file):
     return False
 
 def is_valid_src_file(file):
-    return file.is_source and is_valid_src_hdr_file(file)
+    for type in SRC_FTYPES:
+        if file.basename.endswith(type):
+            return True
+    return False
+# return file.is_source and is_valid_src_hdr_file(file)
+
 
 # -- Aspect to collect C++ source and header files
 
@@ -71,6 +76,23 @@ def rule_cc_sources(rule):
             for hdr in rule.attr.hdrs:
                 files += [file for file in hdr.files.to_list() if is_valid_src_hdr_file(file)]
     return files
+
+def rule_cc_headers(rule):
+    """The source/header files of a CC rule, or empty
+
+    Args:
+      rule: The rule being queried
+
+    Returns:
+      A list of bazel file objects
+    """
+    files = []
+    if is_cc_rule(rule):
+        if hasattr(rule.attr, "hdrs"):
+            for hdr in rule.attr.hdrs:
+                files += [file for file in hdr.files.to_list() if is_valid_src_hdr_file(file)]
+    return files
+
 
 def _collect_cc_dependencies_impl(target, ctx):
     files = rule_cc_sources(ctx.rule) if is_workspace_target(target) else []
@@ -147,16 +169,13 @@ def _collect_cc_actions_impl(target, ctx):
     name = "@{}//{}:{}".format(ctx.label.workspace_name, ctx.label.package, ctx.label.name)
 
     if is_cc_rule(ctx.rule) and name not in lookup: # and is_workspace_target(target):
-        srcs = []
-        
-        if hasattr(ctx.rule.attr, "srcs"):
-            for src in ctx.rule.attr.srcs:
-                srcs += [s for s in src.files.to_list() if is_valid_src_file(s)]
+        src_hdrs = rule_cc_sources(ctx.rule)
+        srcs = [f for f in src_hdrs if is_valid_src_file(f)]
+        hdrs = [f for f in src_hdrs if is_valid_hdr_file(f)]
 
         # Lazily generate the C/C++ flags for this rule, based on activated features
         cflags = None
         cxxflags = None
-        linkflags = None
         for src in srcs:
             if not cflags and is_c_file(src):
                 cflags = _calculate_toolchain_flags(ctx, ACTION_NAMES.c_compile)
@@ -167,19 +186,37 @@ def _collect_cc_actions_impl(target, ctx):
         if not cxxflags:
             cxxflags = []
 
+        linkflags = []
+        if ctx.rule.kind == "cc_binary":
+            linkflags = _calculate_toolchain_flags(ctx, ACTION_NAMES.cpp_link_executable)
+            
         # Add per-rule copts
+        copts = []
+        conlyopts = []
+        cxxopts = []
         if hasattr(ctx.rule.attr, "copts"):
-            cflags = cflags + ctx.rule.attr.copts
-            cxxflags = cxxflags + ctx.rule.attr.copts
+            copts = ctx.rule.attr.copts
+        if hasattr(ctx.rule.attr, "conlyopts"):
+            conlyopts = ctx.rule.attr.conlyopts
+        if hasattr(ctx.rule.attr, "cxxopts"):
+            cxxopts = ctx.rule.attr.cxxopts
 
+        cflags = cflags + copts + conlyopts
+        cxxflags = cxxflags + copts + cxxopts
+            
         info = {
             "name": name,
             "label": ctx.label,
             "kind": ctx.rule.kind,
             "attr": ctx.rule.attr,
             "srcs": srcs,
+            "hdrs": hdrs,
             "cflags": cflags,
             "cxxflags": cxxflags,
+            "linkflags": linkflags,
+            "copts": copts,
+            "conlyopts": conlyopts,
+            "cxxopts": cxxopts,
             "in_workspace": is_workspace_target(target),
         }
 
