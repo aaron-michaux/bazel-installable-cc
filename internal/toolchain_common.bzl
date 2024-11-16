@@ -131,14 +131,19 @@ def default_flagsets(ctx):
         version_str = ctx.attr.version.replace(".", "_")
         version_define.append("-DBAZEL_COMPILER____={}_{}".format(compiler, version_str))
 
+    stack_protector_when_opt = "stack_protector_when_opt" in ctx.features
+    
     # Compile flags
     base_comp_flags = combine_flags(version_define, ctx.attr.base_compile_flags)
     c_flags = combine_flags([], ctx.attr.c_flags)
     cxx_flags = combine_flags([], ctx.attr.cxx_flags)
     dbg_comp_flags = combine_flags(["-O0", "-g"], ctx.attr.dbg_compile_flags)
     opt_comp_flags = combine_flags(
-        ["-O3", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],
-        ctx.attr.opt_compile_flags,
+        combine_flags(
+            ["-O3", "-DNDEBUG", "-ffunction-sections", "-fdata-sections"],        
+            ctx.attr.opt_compile_flags,
+        ),
+        ["-fstack-protector"] if stack_protector_when_opt else []
     )
     coverage_comp_flags = combine_flags([], ctx.attr.coverage_compile_flags)
     benchmark_comp_flags = combine_flags(
@@ -860,6 +865,9 @@ def make_base_features(ctx):
         # Pic
         feature(name = "pic", enabled = False, flag_sets = pic_flags(ctx)),
         feature(name = "supports_pic", enabled = True),
+
+        # Stack Protector
+        feature(name = "stack_protector_when_opt", enabled = False),
 
         # Warnings
         feature(name = "warnings", enabled = True, flag_sets = warning_flags(ctx)),

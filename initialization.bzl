@@ -280,34 +280,11 @@ def _file_sha256(repo_ctx, filename):
 def _download_one(repo_ctx, url, archive_name, expected_hash, cache_file):
     """Attempt to download one url, first checking if the file is cached, and checking for the expected hash"""
     full_url = "{}/{}".format(url, archive_name)
-
-    # Does the cache file exist?
-    file_hash = _file_sha256(repo_ctx, cache_file)
-    if file_hash == expected_hash:
-        # Does it have the correct hash?
-        info(repo_ctx, "download file is already cached and passes hash-check, skipping download")
-        return True
-
-    # Otherwise attempt to downdload
-    log_file = "{}.wget.log".format(cache_file)
-    cmd = ["wget", "-t", "3", "--show-progress", "-O", cache_file, "-o", log_file]
-    if repo_ctx.attr.no_check_certificate:
-        cmd.append("--no-check-certificate")
-    cmd.append(full_url)
-    ret = repo_ctx.execute(cmd)
-    if ret.return_code != 0:
+    ret = repo_ctx.download(full_url, output=cache_file, allow_fail=True, sha256=expected_hash)
+    if not ret.success:
         warn(repo_ctx, "download failed, url: {}, exitcode: {}"
             .format(full_url, ret.return_code))
         return False  # We can ignore this error, download will try again
-
-    if not repo_ctx.path(cache_file).exists:
-        fail("wget download succeeded; however, cache-file does not exist! file: {}".format(cache_file))
-
-    # Check the hash
-    file_hash = _file_sha256(repo_ctx, cache_file)
-    if file_hash != expected_hash:
-        fail("Hash mismatch, file: {}, hash: {}, expected-hash: {}"
-            .format(cache_file, file_hash, expected_hash))
     return True
 
 def _download_and_extract_one(
@@ -325,7 +302,7 @@ def _download_and_extract_one(
     # Attempt to download the file
     info(repo_ctx, "download attempt {}, url: {}".format(attempt, "{}/{}".format(url, archive_name)))
     ensure_directory_exists(repo_ctx, download_cache_dir)
-    cache_file = "{}/{}".format(download_cache_dir, archive_name)
+    cache_file = "externa/toolchains/{}".format(download_cache_dir, archive_name)
     if not _download_one(repo_ctx, url, archive_name, expected_hash, cache_file):
         return False  # we'll try another url
 
