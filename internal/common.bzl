@@ -53,8 +53,6 @@ def is_valid_src_file(file):
         if file.basename.endswith(type):
             return True
     return False
-# return file.is_source and is_valid_src_hdr_file(file)
-
 
 # -- Aspect to collect C++ source and header files
 
@@ -133,13 +131,14 @@ def append_compiler_context_flags(flags, compilation_context):
     """
     return [x for x in flags] + get_compiler_context_flags(compilation_context)
 
-def _uniqify_list(items):
+def _uniquify_list(items, thunk = None):
     set = {}
     out = []
     for item in items:
-        if item in set:
+        key = thunk(item) if thunk else item
+        if key in set:
             continue
-        set[item] = True
+        set[key] = True
         out += [item]
     return out
 
@@ -183,8 +182,14 @@ def collect_cc_actions_impl(target, ctx):
     lookup = {}
     
     name = "@{}//{}:{}".format(ctx.label.workspace_name, ctx.label.package, ctx.label.name)
-
-    if is_cc_rule(ctx.rule) and name not in lookup: # and is_workspace_target(target):
+    is_cc_rule = CcInfo in target
+    
+    unity_src_file = ctx.actions.declare_file(ctx.label.name + ".unity.cpp")
+    unity_build_file = ctx.actions.declare_file(ctx.label.name + ".unity.BUILD.bazel")
+    include_stmts = ""
+    build_file_contents = ""
+    
+    if is_cc_rule and name not in lookup: # and is_workspace_target(target):
         src_hdrs = rule_cc_sources(ctx.rule)
         srcs = [f for f in src_hdrs if is_valid_src_file(f)]
         hdrs = [f for f in src_hdrs if is_valid_hdr_file(f)]
@@ -239,12 +244,13 @@ def collect_cc_actions_impl(target, ctx):
             for dep in ctx.rule.attr.deps:
                 if CcRuleSetInfo in dep:
                     for key, value in dep[CcRuleSetInfo].lookup.items():                        
-                        if key in lookup:
-                            continue
                         # print("KEY: ", key)
                         lookup[key] = value
                         collected += [value]
 
+        # Uniquify "collected"
+        collected = _uniquify_list(collected, lambda x: x["name"])
+                        
         out_infos = [x for x in collected if x["in_workspace"]]
         out_srcs = [x for infos in out_infos for x in infos["srcs"]]
         out_hdrs = [x for infos in out_infos for x in infos["hdrs"]]
@@ -252,18 +258,16 @@ def collect_cc_actions_impl(target, ctx):
 
         textual_hdrs = [_file_to_label(f.short_path) for f in out_all]
         
-        all_copts = _uniqify_list([x for i in out_infos for x in i["copts"]])
-        all_conlyopts = _uniqify_list([x for i in out_infos for x in i["conlyopts"]])
-        all_cxxopts = _uniqify_list([x for i in out_infos for x in i["cxxopts"]])
-        all_linkopts = _uniqify_list([x for i in out_infos for x in i["linkopts"]])
+        all_copts = _uniquify_list([x for i in out_infos for x in i["copts"]])
+        all_conlyopts = _uniquify_list([x for i in out_infos for x in i["conlyopts"]])
+        all_cxxopts = _uniquify_list([x for i in out_infos for x in i["cxxopts"]])
+        all_linkopts = _uniquify_list([x for i in out_infos for x in i["linkopts"]])
 
         all_deps = [i["name"] for i in collected if not i["in_workspace"]]
         
         # Make the Unity cpp file
-        include_stmts = ["#include \"" + file.path + "\"" for file in out_srcs]
-        unity_src_file = ctx.actions.declare_file(ctx.label.name + ".unity.cpp")
-        ctx.actions.write(unity_src_file, "\n".join(include_stmts))
-
+        include_stmts = "\n".join(["#include \"" + file.path + "\"" for file in out_srcs])
+        
         # Make the Unity BUILD file
         build_file_contents = """
 cc_library(
@@ -284,9 +288,10 @@ cc_binary(
 )
         """.format(ctx.label.name,
                    all_copts, all_conlyopts, all_cxxopts, all_linkopts, textual_hdrs, all_deps)
-        unity_build_file = ctx.actions.declare_file(ctx.label.name + ".unity.BUILD.bazel")
-        ctx.actions.write(unity_build_file, build_file_contents)
-                    
+
+    ctx.actions.write(unity_src_file, include_stmts)
+    ctx.actions.write(unity_build_file, build_file_contents)
+        
     return [
         CcRuleSetInfo(cc_infos = collected, lookup = lookup),
         OutputGroupInfo(unity_files = depset([unity_src_file, unity_build_file])),
