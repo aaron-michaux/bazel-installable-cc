@@ -73,6 +73,9 @@ def rule_cc_sources(rule):
         if hasattr(rule.attr, "hdrs"):
             for hdr in rule.attr.hdrs:
                 files += [file for file in hdr.files.to_list() if is_valid_src_hdr_file(file)]
+        if hasattr(rule.attr, "textual_hdrs"):
+            for hdr in rule.attr.textual_hdrs:
+                files += [file for file in hdr.files.to_list()]
     return files
 
 def rule_cc_headers(rule):
@@ -144,9 +147,18 @@ def _uniquify_list(items, thunk = None):
 
 def _file_to_label(filename):
     idx = filename.rfind("/")
-    if idx >= 0:
+    if idx >= 0 and filename.find(".pb.") < 0:
         return "//{}:{}".format(filename[0:idx], filename[idx+1:])
     return "//{}".format(filename)
+
+def _is_pb_srcs(info):
+    for src in info["srcs"] + info["hdrs"]:
+        if src.path.endswith(".pb.h") or src.path.endswith(".pb.cc"):
+            return True
+    return False
+
+def _workspace_dep(info, rule):
+    return info["in_workspace"] and rule.kind.find("proto") < 0 and not _is_pb_srcs(info)
 
 # -- Aspect to get everything about CC deps
 
@@ -182,7 +194,8 @@ def collect_cc_actions_impl(target, ctx):
     lookup = {}
     
     name = "@{}//{}:{}".format(ctx.label.workspace_name, ctx.label.package, ctx.label.name)
-    is_cc_rule = CcInfo in target
+    is_proto_rule = ctx.rule.kind.find("proto") >= 0
+    is_cc_rule = CcInfo in target and not is_proto_rule
     
     unity_src_file = ctx.actions.declare_file(ctx.label.name + ".unity.cpp")
     unity_build_file = ctx.actions.declare_file(ctx.label.name + ".unity.BUILD.bazel")
@@ -193,7 +206,7 @@ def collect_cc_actions_impl(target, ctx):
         src_hdrs = rule_cc_sources(ctx.rule)
         srcs = [f for f in src_hdrs if is_valid_src_file(f)]
         hdrs = [f for f in src_hdrs if is_valid_hdr_file(f)]
-
+        
         # Lazily generate the C/C++ flags for this rule, based on activated features
         cflags = None
         cxxflags = None
@@ -219,7 +232,9 @@ def collect_cc_actions_impl(target, ctx):
         
         cflags = cflags + copts + conlyopts
         cxxflags = cxxflags + copts + cxxopts
-            
+
+        # Alas, protobuf produces 
+        
         info = {
             "name": name,
             "label": ctx.label,
@@ -239,9 +254,11 @@ def collect_cc_actions_impl(target, ctx):
 
         lookup[name] = info
         collected += [info]
-
-        if hasattr(ctx.rule.attr, "deps"):
+        
+        if hasattr(ctx.rule.attr, "deps") and info["in_workspace"]:
             for dep in ctx.rule.attr.deps:
+                if "{}".format(dep.label).endswith("protobuf_layering_check_legacy"):
+                    continue # This dependency is blacklisted
                 if CcRuleSetInfo in dep:
                     for key, value in dep[CcRuleSetInfo].lookup.items():                        
                         # print("KEY: ", key)
@@ -251,19 +268,19 @@ def collect_cc_actions_impl(target, ctx):
         # Uniquify "collected"
         collected = _uniquify_list(collected, lambda x: x["name"])
                         
-        out_infos = [x for x in collected if x["in_workspace"]]
+        out_infos = [x for x in collected if _workspace_dep(x, ctx.rule)]
         out_srcs = [x for infos in out_infos for x in infos["srcs"]]
         out_hdrs = [x for infos in out_infos for x in infos["hdrs"]]
         out_all = out_srcs + out_hdrs
 
-        textual_hdrs = [_file_to_label(f.short_path) for f in out_all]
+        textual_hdrs = _uniquify_list([_file_to_label(f.short_path) for f in out_all])
         
         all_copts = _uniquify_list([x for i in out_infos for x in i["copts"]])
         all_conlyopts = _uniquify_list([x for i in out_infos for x in i["conlyopts"]])
         all_cxxopts = _uniquify_list([x for i in out_infos for x in i["cxxopts"]])
         all_linkopts = _uniquify_list([x for i in out_infos for x in i["linkopts"]])
 
-        all_deps = [i["name"] for i in collected if not i["in_workspace"]]
+        all_deps = [i["name"] for i in collected if not _workspace_dep(i, ctx.rule)]
         
         # Make the Unity cpp file
         include_stmts = "\n".join(["#include \"" + file.path + "\"" for file in out_srcs])
