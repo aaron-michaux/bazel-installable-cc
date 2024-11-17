@@ -54,6 +54,9 @@ def is_valid_src_file(file):
             return True
     return False
 
+def is_valid_shared_library(file):
+    return file.basename.endswith(".so")
+
 # -- Aspect to collect C++ source and header files
 
 def rule_cc_sources(rule):
@@ -69,10 +72,10 @@ def rule_cc_sources(rule):
     if is_cc_rule(rule):
         if hasattr(rule.attr, "srcs"):
             for src in rule.attr.srcs:
-                files += [file for file in src.files.to_list() if is_valid_src_hdr_file(file)]
+                files += [file for file in src.files.to_list()]
         if hasattr(rule.attr, "hdrs"):
             for hdr in rule.attr.hdrs:
-                files += [file for file in hdr.files.to_list() if is_valid_src_hdr_file(file)]
+                files += [file for file in hdr.files.to_list()]
         if hasattr(rule.attr, "textual_hdrs"):
             for hdr in rule.attr.textual_hdrs:
                 files += [file for file in hdr.files.to_list()]
@@ -118,7 +121,8 @@ def get_compiler_context_flags(compilation_context):
     args += ["-F" + f for f in compilation_context.framework_includes.to_list()]
     args += ["-I" + i for i in compilation_context.includes.to_list()]
     args += ["-iquote" + q for q in compilation_context.quote_includes.to_list()]
-    args += ["-isystem" + q for q in compilation_context.external_includes.to_list()]
+    if hasattr(compilation_context, "external_includes"):
+        args += ["-isystem" + q for q in compilation_context.external_includes.to_list()]
     args += ["-isystem" + s for s in compilation_context.system_includes.to_list()]
     return args
 
@@ -151,14 +155,43 @@ def _file_to_label(filename):
         return "//{}:{}".format(filename[0:idx], filename[idx+1:])
     return "//{}".format(filename)
 
+def _file_to_rel_label(label, so_name):
+    if not label.startswith("@//"):
+        return _file_to_label(so_name)
+    label = label[3:]
+    index = label.find(":")
+    if index < 0:
+        return _file_to_label(so_name)
+    root = label[0:index]
+    if so_name.startswith(root):
+        return "//{}:{}".format(root, so_name[index+1:])
+    return _file_to_label(so_name)
+
 def _is_pb_srcs(info):
     for src in info["srcs"] + info["hdrs"]:
-        if src.path.endswith(".pb.h") or src.path.endswith(".pb.cc"):
+        if src.path.endswith(".pb.h") or src.path.endswith(".pb.cc") or src.path.endswith(".pb.validate.cc") or src.path.endswith(".pb.validate.h"):
             return True
     return False
 
 def _workspace_dep(info, rule):
     return info["in_workspace"] and rule.kind.find("proto") < 0 and not _is_pb_srcs(info)
+
+def _rule_directory(name):
+    if not name.startswith("@"):
+        return
+    name = name[1:]
+    index = name.find("//")
+    if index < 0:
+        return ""
+    start = name[0:index]
+    name = name[index+2:]
+    index = name.rfind(":")
+    if index < 0:
+        return ""
+    name = name[0:index]
+    if start == "":
+        return name
+    return "bazel-bin/external/{}/{}".format(start, name)
 
 # -- Aspect to get everything about CC deps
 
@@ -195,7 +228,7 @@ def collect_cc_actions_impl(target, ctx):
     
     name = "@{}//{}:{}".format(ctx.label.workspace_name, ctx.label.package, ctx.label.name)
     is_proto_rule = ctx.rule.kind.find("proto") >= 0
-    is_cc_rule = CcInfo in target and not is_proto_rule
+    is_cc_rule = CcInfo in target
     
     unity_src_file = ctx.actions.declare_file(ctx.label.name + ".unity.cpp")
     unity_build_file = ctx.actions.declare_file(ctx.label.name + ".unity.BUILD.bazel")
@@ -206,6 +239,7 @@ def collect_cc_actions_impl(target, ctx):
         src_hdrs = rule_cc_sources(ctx.rule)
         srcs = [f for f in src_hdrs if is_valid_src_file(f)]
         hdrs = [f for f in src_hdrs if is_valid_hdr_file(f)]
+        so_srcs = [f for f in src_hdrs if is_valid_shared_library(f)]
         
         # Lazily generate the C/C++ flags for this rule, based on activated features
         cflags = None
@@ -233,8 +267,13 @@ def collect_cc_actions_impl(target, ctx):
         cflags = cflags + copts + conlyopts
         cxxflags = cxxflags + copts + cxxopts
 
-        # Alas, protobuf produces 
-        
+        data = ctx.rule.attr.data if hasattr(ctx.rule.attr, "data") else []
+        include_prefixes = [ctx.rule.attr.include_prefix] if hasattr(ctx.rule.attr, "include_prefix") else []
+        includes = ctx.rule.attr.includes if hasattr(ctx.rule.attr, "includes") else []
+
+        rule_dir = _rule_directory(name)
+        includes = [rule_dir if i == "." else i for i in includes]
+
         info = {
             "name": name,
             "label": ctx.label,
@@ -242,6 +281,10 @@ def collect_cc_actions_impl(target, ctx):
             "attr": ctx.rule.attr,
             "srcs": srcs,
             "hdrs": hdrs,
+            "so_srcs": [_file_to_rel_label(name, so.path) for so in so_srcs],
+            "data": data,
+            "include_prefix": include_prefixes,
+            "includes": includes,
             "cflags": cflags,
             "cxxflags": cxxflags,
             "linkflags": linkflags,
@@ -249,9 +292,10 @@ def collect_cc_actions_impl(target, ctx):
             "conlyopts": conlyopts,
             "cxxopts": cxxopts,
             "linkopts": linkopts,
+            "is_proto_rule": is_proto_rule,
             "in_workspace": is_workspace_target(target),
         }
-
+        
         lookup[name] = info
         collected += [info]
         
@@ -267,32 +311,50 @@ def collect_cc_actions_impl(target, ctx):
 
         # Uniquify "collected"
         collected = _uniquify_list(collected, lambda x: x["name"])
-                        
-        out_infos = [x for x in collected if _workspace_dep(x, ctx.rule)]
-        out_srcs = [x for infos in out_infos for x in infos["srcs"]]
-        out_hdrs = [x for infos in out_infos for x in infos["hdrs"]]
+
+        workspace_proto_deps = [i["name"] for i in collected if i["is_proto_rule"] and i["in_workspace"]]                
+        all_deps = _uniquify_list([i["name"] for i in collected if not _workspace_dep(i, ctx.rule)] + workspace_proto_deps)
+        out_infos = [i for i in collected if _workspace_dep(i, ctx.rule)]
+        
+        out_srcs = _uniquify_list([x for infos in out_infos for x in infos["srcs"]])
+        out_hdrs = _uniquify_list([x for infos in out_infos for x in infos["hdrs"]])
         out_all = out_srcs + out_hdrs
 
         textual_hdrs = _uniquify_list([_file_to_label(f.short_path) for f in out_all])
+
+        extra_includes_dirs = _uniquify_list([x for i in out_infos for x in i["includes"]] + ["source", "include"])
+        extra_includes = ["-I{}".format(x) for x in extra_includes_dirs]
         
-        all_copts = _uniquify_list([x for i in out_infos for x in i["copts"]])
+        all_copts = _uniquify_list([x for i in out_infos for x in i["copts"]] + extra_includes)
         all_conlyopts = _uniquify_list([x for i in out_infos for x in i["conlyopts"]])
         all_cxxopts = _uniquify_list([x for i in out_infos for x in i["cxxopts"]])
         all_linkopts = _uniquify_list([x for i in out_infos for x in i["linkopts"]])
 
-        all_deps = [i["name"] for i in collected if not _workspace_dep(i, ctx.rule)]
+        all_data = [x for i in out_infos for x in i["data"]]
         
         # Make the Unity cpp file
         include_stmts = "\n".join(["#include \"" + file.path + "\"" for file in out_srcs])
         
         # Make the Unity BUILD file
+        conlyopts_str = "\n    conlyopts = {},".format(all_conlyopts) if len(all_conlyopts) > 0 else ""
+        cxxopts_str = "\n    cxxopts = {},".format(all_cxxopts) if len(all_cxxopts) > 0 else ""
+
+        all_so_libs = _uniquify_list([x for i in out_infos for x in i["so_srcs"]])
+
+        # it_is = name.endswith(":cple_sg_so_lib")
+        # if it_is:
+        #     print("NAME: ", name)
+        #     for k, v in info.items():
+        #         print("K", k, v)
+        #     print("SO_DEPS", so_srcs)
+        #     print("ALL_SO_DEPS", all_so_libs)
+        #     fail("foo")
+            
         build_file_contents = """
 cc_library(
     name = "{0}_lib",
     srcs = ["{0}.unity.cpp"],
-    copts = {1},
-    conlyopts = {2},
-    cxxopts = {3},
+    copts = {1},{2}{3}
     linkopts = {4},
     textual_hdrs = {5},
     deps = {6},
@@ -301,10 +363,14 @@ cc_library(
 
 cc_binary(
     name = "{0}",
+    srcs = {8},
+    data = {7},
     deps = [":{0}_lib"],
+    visibility = ["//visibility:public"],
 )
+
         """.format(ctx.label.name,
-                   all_copts, all_conlyopts, all_cxxopts, all_linkopts, textual_hdrs, all_deps)
+                   all_copts, conlyopts_str, cxxopts_str, all_linkopts, textual_hdrs, all_deps, all_data, all_so_libs)
 
     ctx.actions.write(unity_src_file, include_stmts)
     ctx.actions.write(unity_build_file, build_file_contents)
