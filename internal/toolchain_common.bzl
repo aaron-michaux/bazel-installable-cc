@@ -325,6 +325,15 @@ def usan_flags(ctx):
         with_features = [with_feature_set(features = ["stdcxx"])],
     )]
 
+    UBSAN_CHECKS_LIST = [
+        "null", "nonnull-attribute", "pointer-overflow",
+        "alignment", "bounds", "enum", "object-size", "return", "shift", "unreachable",
+        "vla-bound", "vptr",
+        "signed-integer-overflow", "integer-divide-by-zero",
+        "float-cast-overflow", "float-divide-by-zero"
+    ]
+    UBSAN_CHECKS = ",".join(UBSAN_CHECKS_LIST)
+    
     return [
         flag_set(
             actions = ALL_COMPILE_ACTIONS,
@@ -333,14 +342,14 @@ def usan_flags(ctx):
                     "-g",
                     "-fno-optimize-sibling-calls",
                     "-fno-omit-frame-pointer",
-                    "-fsanitize=undefined",
+                    "-fsanitize=" + UBSAN_CHECKS,                    
                 ],
             )]),
         ),
         flag_set(
             actions = ALL_NON_STATIC_LINK_ACTIONS,
             flag_groups = ([flag_group(
-                flags = ["-fsanitize=undefined"] +
+                flags = ["-fsanitize=" + UBSAN_CHECKS] +
                         (["-static-libubsan"] if is_gcc else ["-lubsan"]),  # clang
             )]),
         ),
